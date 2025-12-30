@@ -29,20 +29,20 @@ fn check_go_version(go_path: &PathBuf) -> Result<()> {
     if let Some((major, minor, patch)) = semver {
         // TODO: there might be a patch number correlated with wasip3.
         if major == 1 && minor >= 25 {
-            return Ok(());
+            Ok(())
         } else {
-            return Err(anyhow!(
+            Err(anyhow!(
                 "Go version is not valid. Expected '^1.25.0', found '{}.{}.{}'",
                 major,
                 minor,
                 patch
-            ));
+            ))
         }
     } else {
-        return Err(anyhow!(
+        Err(anyhow!(
             "Failed to parse Go version from: {}",
             version_string
-        ));
+        ))
     }
 }
 
@@ -61,8 +61,8 @@ pub fn core_module_to_component(wasm_file: &PathBuf) -> Result<()> {
         .encode()
         .context("failed to encode component from module")?;
 
-    std::fs::write(&wasm_file, bytes)
-        .context(format!("failed to write `{}`", &wasm_file.display()))?;
+    std::fs::write(wasm_file, bytes)
+        .context(format!("failed to write `{}`", wasm_file.display()))?;
 
     Ok(())
 }
@@ -75,15 +75,15 @@ pub fn embed_wit(
     all_features: bool,
 ) -> Result<()> {
     let mut wasm = wat::Parser::new().parse_file(wasm_file)?;
-    let (resolve, world_id) = parse_wit(&wit_path, world, features, all_features)?;
+    let (resolve, world_id) = parse_wit(wit_path, world, features, all_features)?;
     wit_component::embed_component_metadata(
         &mut wasm,
         &resolve,
         world_id,
         wit_component::StringEncoding::UTF8,
     )?;
-    std::fs::write(&wasm_file, wasm)
-        .context(format!("failed to write `{}`", &wasm_file.display()))?;
+    std::fs::write(wasm_file, wasm)
+        .context(format!("failed to write `{}`", wasm_file.display()))?;
     Ok(())
 }
 
@@ -143,7 +143,7 @@ pub fn build_wasm_core_module(
         .args([
             "build",
             "-C",
-            &module_path,
+            module_path,
             "-buildmode=c-shared",
             "-ldflags=-checklinkname=0",
             "-o",
