@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
-use wit_parser::{Resolve, UnresolvedPackageGroup, WorldId};
+use wit_parser::{PackageId, Resolve, WorldId};
 
 /// Ensure that the Go version is compatible with the embedded Wasm tooling.
 fn check_go_version(go_path: &PathBuf) -> Result<()> {
@@ -191,19 +191,12 @@ fn parse_wit(
         }
     }
 
-    let mut last_pkg = None;
+    let mut main_packages: Vec<PackageId> = vec![];
     for path in paths.iter().map(AsRef::as_ref) {
-        let pkg = if path.is_dir() {
-            resolve.push_dir(path)?.0
-        } else {
-            let pkg = UnresolvedPackageGroup::parse_file(path)?;
-            resolve.push_group(pkg)?
-        };
-        last_pkg = Some(pkg);
+        let (pkg, _files) = resolve.push_path(path)?;
+        main_packages.push(pkg);
     }
 
-    let pkg = last_pkg.unwrap(); // The paths should not be empty
-    let world = resolve.select_world(&[pkg], world)?;
-
+    let world = resolve.select_world(&main_packages, world)?;
     Ok((resolve, world))
 }

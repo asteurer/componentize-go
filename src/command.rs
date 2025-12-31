@@ -19,7 +19,10 @@ pub struct Common {
     /// The location of the WIT document(s).
     ///
     /// This may be specified more than once, for example:
-    /// `-d ./wit/deps -d ./wit/app`
+    /// `-d ./wit/deps -d ./wit/app`.
+    ///
+    /// These paths can be either directories containing `*.wit` files, `*.wit`
+    /// files themselves, or `*.wasm` files which are wasm-encoded WIT packages.
     #[arg(long, short = 'd')]
     pub wit_path: Vec<PathBuf>,
 
