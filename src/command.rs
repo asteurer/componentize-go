@@ -83,6 +83,12 @@ pub struct Bindings {
     /// This will be created if it does not already exist.
     #[arg(long, short = 'o')]
     pub output: Option<PathBuf>,
+
+    /// If true, generate stub functions for any exported functions and/or resources.
+    ///
+    /// A stub function is a placeholder method which has not yet been implemented.
+    #[arg(long)]
+    pub generate_stubs: bool,
 }
 
 fn componentize(common: Common, componentize: Componentize) -> Result<()> {
@@ -113,6 +119,7 @@ fn bindings(common: Common, bindings: Bindings) -> Result<()> {
         common.world.as_deref(),
         &common.features,
         common.all_features,
+        bindings.generate_stubs,
         bindings.output.as_deref(),
     )
 }

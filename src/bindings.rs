@@ -7,14 +7,18 @@ pub fn generate_bindings(
     world: Option<&str>,
     features: &[String],
     all_features: bool,
+    generate_stubs: bool,
     output: Option<&Path>,
 ) -> Result<()> {
     let (resolve, world) = parse_wit(wit_path, world, features, all_features)?;
     let mut files = Default::default();
 
-    wit_bindgen_go::Opts::default()
-        .build()
-        .generate(&resolve, world, &mut files)?;
+    wit_bindgen_go::Opts {
+        generate_stubs,
+        ..Default::default()
+    }
+    .build()
+    .generate(&resolve, world, &mut files)?;
 
     let output_path = match output {
         Some(p) => {
