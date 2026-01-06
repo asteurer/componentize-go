@@ -85,8 +85,6 @@ pub struct Bindings {
     pub output: Option<PathBuf>,
 
     /// If true, generate stub functions for any exported functions and/or resources.
-    ///
-    /// A stub function is a placeholder method which has not yet been implemented.
     #[arg(long)]
     pub generate_stubs: bool,
 
