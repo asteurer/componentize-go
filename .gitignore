@@ -1,5 +1,6 @@
 target
 go.mod
+go.sum
 *.wasm
 wasi_*
 wit_*

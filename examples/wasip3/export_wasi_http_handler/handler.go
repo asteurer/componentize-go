@@ -7,7 +7,8 @@ import (
 	"net/url"
 	"wit_component/wasi_http_handler"
 	. "wit_component/wasi_http_types"
-	. "wit_component/wit_types"
+
+	. "github.com/bytecodealliance/wit-bindgen/wit_types"
 )
 
 // Handle the specified `Request`, returning a `Response`
@@ -26,8 +27,8 @@ func Handle(request *Request) Result[*Response, ErrorCode] {
 		}()
 
 		response, send := ResponseNew(
-			FieldsFromList([]Tuple2[string, []uint8]{
-				Tuple2[string, []uint8]{"content-type", []uint8("text/plain")},
+			FieldsFromList([]Tuple2[string, []byte]{
+				{F0: "content-type", F1: []byte("text/plain")},
 			}).Ok(),
 			Some(rx),
 			trailersFuture(),
