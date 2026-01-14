@@ -49,6 +49,9 @@ pub enum Command {
     /// Build a Go WebAssembly component.
     Componentize(Componentize),
 
+    /// Build WebAssembly core modules from Go unit tests.
+    BuildTests(BuildTests),
+
     /// Generate Go bindings for the world.
     Bindings(Bindings),
 }
@@ -66,6 +69,28 @@ pub struct Componentize {
     /// The directory containing the "go.mod" file (or current directory if `None`).
     #[arg(long = "mod")]
     pub mod_path: Option<PathBuf>,
+}
+
+#[derive(Parser)]
+pub struct BuildTests {
+    /// The path to the main module (or current directory if `None`).
+    #[arg(long = "mod")]
+    pub mod_path: Option<PathBuf>,
+
+    /// The path to the Go binary (or look for binary in PATH if `None`).
+    #[arg(long)]
+    pub go: Option<PathBuf>,
+
+    /// The directory storing each package's Wasm test binaries (or ./wasm_testfiles if `None`).
+    #[arg(long, short = 'o')]
+    pub output: Option<PathBuf>,
+
+    /// The path to a directory containing a "*_test.go" file relative to the module.
+    ///
+    /// This may be specified more than once, for example:
+    /// `--pkg ./package1 --pkg ./package2`.
+    #[arg(long = "pkg")]
+    pub packages: Vec<PathBuf>,
 }
 
 #[derive(Parser)]
@@ -96,6 +121,7 @@ pub fn run<T: Into<OsString> + Clone, I: IntoIterator<Item = T>>(args: I) -> Res
     match options.command {
         Command::Componentize(opts) => componentize(options.common, opts),
         Command::Bindings(opts) => bindings(options.common, opts),
+        Command::BuildTests(opts) => build_tests(opts),
     }
 }
 
@@ -118,6 +144,17 @@ fn componentize(common: Common, componentize: Componentize) -> Result<()> {
 
     // Step 3: Update the core module to use the component model ABI.
     componentize::core_module_to_component(&core_module)?;
+    Ok(())
+}
+
+fn build_tests(build_tests: BuildTests) -> Result<()> {
+    crate::build_tests::build_unit_test_modules(
+        build_tests.mod_path,
+        build_tests.packages,
+        build_tests.output,
+        build_tests.go,
+    )?;
+
     Ok(())
 }
 
