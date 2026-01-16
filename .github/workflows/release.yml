@@ -2,6 +2,8 @@ name: Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
 
@@ -48,20 +50,16 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          rustup target add ${{ matrix.target }}
 
       - name: Install cross-compilation tools (Linux aarch64)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      - name: Cache Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
 
       - name: Build binary
         run: cargo build --release --target ${{ matrix.target }}
@@ -119,7 +117,29 @@ jobs:
           cd release
           sha256sum * > checksums.txt
 
-      - name: Create Release
+      - name: Create Release (tagged)
+        if: startsWith(github.ref, 'refs/tags/')
         run: gh release create --generate-notes ${{ github.ref_name }} release/*
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Create/Update Canary Release
+        if: github.ref == 'refs/heads/main'
+        run: |
+          # Delete existing canary release if it exists
+          gh release delete canary --yes || true
+          # Delete existing canary tag if it exists
+          git push origin :refs/tags/canary || true
+          # Create new canary release
+          gh release create canary \
+            --title "Canary Release" \
+            --notes "**This is an unstable canary release built from the latest \`main\` branch.**
+
+          Commit: ${{ github.sha }}
+          Built: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+
+          This release is automatically updated on every push to \`main\`. Use tagged releases for stable versions." \
+            --prerelease \
+            release/*
         env:
           GH_TOKEN: ${{ github.token }}
