@@ -1,0 +1,12 @@
+package unit:tests;
+
+world test-world {
+    import test-types;
+}
+
+interface test-types {
+    record test-record {
+        foo: option<string>,
+        bar: result<u8>,
+    }
+}

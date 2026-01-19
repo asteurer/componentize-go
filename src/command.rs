@@ -7,15 +7,12 @@ use std::{ffi::OsString, path::PathBuf};
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 pub struct Options {
-    #[command(flatten)]
-    pub common: Common,
-
     #[command(subcommand)]
     pub command: Command,
 }
 
 #[derive(clap::Args, Clone, Debug)]
-pub struct Common {
+pub struct WitOpts {
     /// The location of the WIT document(s).
     ///
     /// This may be specified more than once, for example:
@@ -49,12 +46,18 @@ pub enum Command {
     /// Build a Go WebAssembly component.
     Componentize(Componentize),
 
+    /// Build WebAssembly core modules from Go unit tests.
+    Test(Test),
+
     /// Generate Go bindings for the world.
     Bindings(Bindings),
 }
 
 #[derive(Parser)]
 pub struct Componentize {
+    #[command(flatten)]
+    pub wit_opts: WitOpts,
+
     /// The path to the Go binary (or look for binary in PATH if `None`).
     #[arg(long)]
     pub go: Option<PathBuf>,
@@ -69,7 +72,58 @@ pub struct Componentize {
 }
 
 #[derive(Parser)]
+pub struct Test {
+    #[command(subcommand)]
+    pub command: TestCommand,
+
+    /// The path to the main module (or current directory if `None`).
+    #[arg(long = "mod")]
+    pub mod_path: Option<PathBuf>,
+
+    /// The path to the Go binary (or look for binary in PATH if `None`).
+    #[arg(long)]
+    pub go: Option<PathBuf>,
+
+    /// The directory storing each package's Wasm test binaries (or ./wasm_testfiles if `None`).
+    #[arg(long, short = 'o')]
+    pub output: Option<PathBuf>,
+
+    /// The path to a directory containing a "*_test.go" file relative to the module.
+    ///
+    /// This may be specified more than once, for example:
+    /// `--pkg ./package1 --pkg ./package2`.
+    #[arg(long = "pkg")]
+    pub packages: Vec<PathBuf>,
+}
+
+#[derive(Subcommand)]
+pub enum TestCommand {
+    /// Run unit tests.
+    Run(RunTest),
+
+    /// Build unit tests.
+    Build,
+}
+
+#[derive(Parser)]
+pub struct RunTest {
+    /// Build unit tests before running.
+    #[arg(long)]
+    pub build: bool,
+
+    /// The location(s) of the test binaries.
+    ///
+    /// This may be specified more than once, for example:
+    /// `-d ./test_1 -d ./test_2`.
+    #[arg(short = 'd')]
+    pub test_dir: Vec<PathBuf>,
+}
+
+#[derive(Parser)]
 pub struct Bindings {
+    #[command(flatten)]
+    pub wit_opts: WitOpts,
+
     /// Output directory for bindings (or current directory if `None`).
     ///
     /// This will be created if it does not already exist.
@@ -93,12 +147,13 @@ pub struct Bindings {
 pub fn run<T: Into<OsString> + Clone, I: IntoIterator<Item = T>>(args: I) -> Result<()> {
     let options = Options::parse_from(args);
     match options.command {
-        Command::Componentize(opts) => componentize(options.common, opts),
-        Command::Bindings(opts) => bindings(options.common, opts),
+        Command::Componentize(opts) => componentize(opts),
+        Command::Bindings(opts) => bindings(opts),
+        Command::Test(opts) => test(opts),
     }
 }
 
-fn componentize(common: Common, componentize: Componentize) -> Result<()> {
+fn componentize(componentize: Componentize) -> Result<()> {
     // Step 1: Build a WebAssembly core module using Go.
     let core_module = componentize::build_wasm_core_module(
         componentize.mod_path,
@@ -109,10 +164,10 @@ fn componentize(common: Common, componentize: Componentize) -> Result<()> {
     // Step 2: Embed the WIT documents in the core module.
     componentize::embed_wit(
         &core_module,
-        &common.wit_path,
-        common.world.as_deref(),
-        &common.features,
-        common.all_features,
+        &componentize.wit_opts.wit_path,
+        componentize.wit_opts.world.as_deref(),
+        &componentize.wit_opts.features,
+        componentize.wit_opts.all_features,
     )?;
 
     // Step 3: Update the core module to use the component model ABI.
@@ -120,12 +175,39 @@ fn componentize(common: Common, componentize: Componentize) -> Result<()> {
     Ok(())
 }
 
-fn bindings(common: Common, bindings: Bindings) -> Result<()> {
+fn test(test: Test) -> Result<()> {
+    match test.command {
+        TestCommand::Run(opts) => {
+            if opts.build {
+                crate::test::build_unit_test_modules(
+                    test.mod_path,
+                    test.packages,
+                    test.output,
+                    test.go,
+                )?;
+            }
+            crate::test::run_unit_test_modules(opts.test_dir)?;
+            Ok(())
+        }
+
+        TestCommand::Build => {
+            crate::test::build_unit_test_modules(
+                test.mod_path,
+                test.packages,
+                test.output,
+                test.go,
+            )?;
+            Ok(())
+        }
+    }
+}
+
+fn bindings(bindings: Bindings) -> Result<()> {
     generate_bindings(
-        common.wit_path.as_ref(),
-        common.world.as_deref(),
-        &common.features,
-        common.all_features,
+        bindings.wit_opts.wit_path.as_ref(),
+        bindings.wit_opts.world.as_deref(),
+        &bindings.wit_opts.features,
+        bindings.wit_opts.all_features,
         bindings.generate_stubs,
         bindings.format,
         bindings.output.as_deref(),

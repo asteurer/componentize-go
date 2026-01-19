@@ -1,5 +1,8 @@
-use anyhow::Result;
-use std::path::{Path, PathBuf};
+use anyhow::{Result, anyhow};
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+};
 use wit_parser::{PackageId, Resolve, WorldId};
 
 pub fn parse_wit(
@@ -43,8 +46,50 @@ pub fn parse_wit(
 // Converts a relative path to an absolute path.
 pub fn make_path_absolute(p: &PathBuf) -> Result<PathBuf> {
     if p.is_relative() {
-        Ok(std::env::current_dir()?.join(p))
+        let path = std::env::current_dir()?.join(p);
+        Ok(path)
     } else {
         Ok(p.to_owned())
+    }
+}
+
+/// Ensure that the Go version is compatible with the embedded Wasm tooling.
+pub fn check_go_version(go_path: &PathBuf) -> Result<()> {
+    let output = Command::new(go_path).arg("version").output()?;
+
+    if !output.status.success() {
+        return Err(anyhow!(
+            "'go version' command failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    let version_string = String::from_utf8(output.stdout)?;
+    let version_regex = regex::Regex::new(r"go(\d+)\.(\d+)\.(\d+)").unwrap();
+    let semver = version_regex.captures(&version_string).map(|caps| {
+        (
+            caps[1].parse::<u32>().unwrap(), // Major
+            caps[2].parse::<u32>().unwrap(), // Minor
+            caps[3].parse::<u32>().unwrap(), // Patch
+        )
+    });
+
+    if let Some((major, minor, patch)) = semver {
+        // TODO: there might be a patch number correlated with wasip3.
+        if major == 1 && minor >= 25 {
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "Go version is not valid. Expected '^1.25.0', found '{}.{}.{}'",
+                major,
+                minor,
+                patch
+            ))
+        }
+    } else {
+        Err(anyhow!(
+            "Failed to parse Go version from: {}",
+            version_string
+        ))
     }
 }

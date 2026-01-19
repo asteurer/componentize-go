@@ -1,47 +1,6 @@
-use crate::common::{make_path_absolute, parse_wit};
+use crate::common::{check_go_version, make_path_absolute, parse_wit};
 use anyhow::{Context, Result, anyhow};
 use std::{path::PathBuf, process::Command};
-
-/// Ensure that the Go version is compatible with the embedded Wasm tooling.
-fn check_go_version(go_path: &PathBuf) -> Result<()> {
-    let output = Command::new(go_path).arg("version").output()?;
-
-    if !output.status.success() {
-        return Err(anyhow!(
-            "'go version' command failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
-    }
-
-    let version_string = String::from_utf8(output.stdout)?;
-    let version_regex = regex::Regex::new(r"go(\d+)\.(\d+)\.(\d+)").unwrap();
-    let semver = version_regex.captures(&version_string).map(|caps| {
-        (
-            caps[1].parse::<u32>().unwrap(), // Major
-            caps[2].parse::<u32>().unwrap(), // Minor
-            caps[3].parse::<u32>().unwrap(), // Patch
-        )
-    });
-
-    if let Some((major, minor, patch)) = semver {
-        // TODO: there might be a patch number correlated with wasip3.
-        if major == 1 && minor >= 25 {
-            Ok(())
-        } else {
-            Err(anyhow!(
-                "Go version is not valid. Expected '^1.25.0', found '{}.{}.{}'",
-                major,
-                minor,
-                patch
-            ))
-        }
-    } else {
-        Err(anyhow!(
-            "Failed to parse Go version from: {}",
-            version_string
-        ))
-    }
-}
 
 /// Update the WebAssembly core module to use the component model ABI.
 pub fn core_module_to_component(wasm_file: &PathBuf) -> Result<()> {
