@@ -1,4 +1,4 @@
-use crate::common::{make_path_absolute, parse_wit};
+use crate::utils::{make_path_absolute, parse_wit};
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 

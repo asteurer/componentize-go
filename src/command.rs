@@ -1,5 +1,10 @@
-use crate::{bindings::generate_bindings, componentize};
-use anyhow::Result;
+use crate::{
+    cmd_bindings::generate_bindings,
+    cmd_build::build_module,
+    cmd_test::build_test_module,
+    utils::{embed_wit, module_to_component},
+};
+use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
 use std::{ffi::OsString, path::PathBuf};
 
@@ -8,14 +13,14 @@ use std::{ffi::OsString, path::PathBuf};
 #[command(version, about, long_about = None)]
 pub struct Options {
     #[command(flatten)]
-    pub common: Common,
+    pub wit_opts: WitOpts,
 
     #[command(subcommand)]
     pub command: Command,
 }
 
 #[derive(clap::Args, Clone, Debug)]
-pub struct Common {
+pub struct WitOpts {
     /// The location of the WIT document(s).
     ///
     /// This may be specified more than once, for example:
@@ -46,18 +51,23 @@ pub struct Common {
 
 #[derive(Subcommand)]
 pub enum Command {
-    /// Build a Go WebAssembly component.
-    Componentize(Componentize),
+    /// Build a Go WebAssembly binary.
+    Build(Build),
 
-    /// Generate Go bindings for the world.
+    /// Build Go test WebAssembly binary.
+    Test(Test),
+
+    /// Generate Go bindings for a WIT world.
     Bindings(Bindings),
 }
 
 #[derive(Parser)]
-pub struct Componentize {
-    /// The path to the Go binary (or look for binary in PATH if `None`).
+pub struct Build {
+    /// Whether or not to build a WebAssembly module.
+    ///
+    /// If ommitted, this will build a component.
     #[arg(long)]
-    pub go: Option<PathBuf>,
+    pub wasip1: bool,
 
     /// Final output path for the component (or `./main.wasm` if `None`).
     #[arg(long, short = 'o')]
@@ -66,6 +76,39 @@ pub struct Componentize {
     /// The directory containing the "go.mod" file (or current directory if `None`).
     #[arg(long = "mod")]
     pub mod_path: Option<PathBuf>,
+
+    /// The path to the Go binary (or look for binary in PATH if `None`).
+    #[arg(long)]
+    pub go: Option<PathBuf>,
+}
+
+#[derive(Parser)]
+pub struct Test {
+    /// Whether or not to build a WebAssembly module.
+    ///
+    /// If ommitted, this will build a component.
+    #[arg(long)]
+    pub wasip1: bool,
+
+    /// A package containing Go test files.
+    ///
+    /// This may be specified more than once, for example:
+    /// `--pkg ./cmd/foo --pkg ./cmd/bar`.
+    ///
+    /// The test components will be named using the last segment of the provided path, for example:
+    /// `--pkg ./foo/bar/baz` will result in a file named `test_bar_baz.wasm`
+    #[arg(long)]
+    pub pkg: Vec<PathBuf>,
+
+    /// Output directory for test components (or current directory if `None`).
+    ///
+    /// This will be created if it does not already exist.
+    #[arg(long, short = 'o')]
+    pub output: Option<PathBuf>,
+
+    /// The path to the Go binary (or look for binary in PATH if `None`).
+    #[arg(long)]
+    pub go: Option<PathBuf>,
 }
 
 #[derive(Parser)]
@@ -80,7 +123,7 @@ pub struct Bindings {
     #[arg(long)]
     pub generate_stubs: bool,
 
-    /// Whether or not `gofmt` should be used (if present) to format generated code.
+    /// Whether or not `gofmt` should be used (if present in PATH) to format generated code.
     #[arg(long)]
     pub format: bool,
 
@@ -93,39 +136,71 @@ pub struct Bindings {
 pub fn run<T: Into<OsString> + Clone, I: IntoIterator<Item = T>>(args: I) -> Result<()> {
     let options = Options::parse_from(args);
     match options.command {
-        Command::Componentize(opts) => componentize(options.common, opts),
-        Command::Bindings(opts) => bindings(options.common, opts),
+        Command::Build(opts) => build(options.wit_opts, opts),
+        Command::Bindings(opts) => bindings(options.wit_opts, opts),
+        Command::Test(opts) => test(options.wit_opts, opts),
     }
 }
 
-fn componentize(common: Common, componentize: Componentize) -> Result<()> {
-    // Step 1: Build a WebAssembly core module using Go.
-    let core_module = componentize::build_wasm_core_module(
-        componentize.mod_path,
-        componentize.output,
-        componentize.go,
+fn build(wit_opts: WitOpts, build: Build) -> Result<()> {
+    // Build a wasm module using `go build`.
+    let module = build_module(
+        build.mod_path.as_ref(),
+        build.output.as_ref(),
+        build.go.as_ref(),
+        build.wasip1,
     )?;
 
-    // Step 2: Embed the WIT documents in the core module.
-    componentize::embed_wit(
-        &core_module,
-        &common.wit_path,
-        common.world.as_deref(),
-        &common.features,
-        common.all_features,
-    )?;
+    if !build.wasip1 {
+        // Embed the WIT documents in the wasip1 component.
+        embed_wit(
+            &module,
+            &wit_opts.wit_path,
+            wit_opts.world.as_deref(),
+            &wit_opts.features,
+            wit_opts.all_features,
+        )?;
 
-    // Step 3: Update the core module to use the component model ABI.
-    componentize::core_module_to_component(&core_module)?;
+        // Update the wasm module to use the current component model ABI.
+        module_to_component(&module)?;
+    }
+
     Ok(())
 }
 
-fn bindings(common: Common, bindings: Bindings) -> Result<()> {
+fn test(wit_opts: WitOpts, test: Test) -> Result<()> {
+    if test.pkg.is_empty() {
+        return Err(anyhow!("Path to a package containing Go tests is required"));
+    }
+
+    for pkg in test.pkg.iter() {
+        // Build a wasm module using `go test -c`.
+        let module = build_test_module(pkg, test.output.as_ref(), test.go.as_ref(), test.wasip1)?;
+
+        if !test.wasip1 {
+            // Embed the WIT documents in the wasm module.
+            embed_wit(
+                &module,
+                &wit_opts.wit_path,
+                wit_opts.world.as_deref(),
+                &wit_opts.features,
+                wit_opts.all_features,
+            )?;
+
+            // Update the wasm module to use the current component model ABI.
+            module_to_component(&module)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn bindings(wit_opts: WitOpts, bindings: Bindings) -> Result<()> {
     generate_bindings(
-        common.wit_path.as_ref(),
-        common.world.as_deref(),
-        &common.features,
-        common.all_features,
+        wit_opts.wit_path.as_ref(),
+        wit_opts.world.as_deref(),
+        &wit_opts.features,
+        wit_opts.all_features,
         bindings.generate_stubs,
         bindings.format,
         bindings.output.as_deref(),
