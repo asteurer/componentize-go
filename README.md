@@ -37,3 +37,7 @@ You can download a specific release from the [release page](https://github.com/b
 ```sh
 cargo install --git https://github.com/bytecodealliance/componentize-go
 ```
+
+## Usage
+
+Please reference the `README.md` and `Makefile` files in each of the directories in [examples](./examples/).

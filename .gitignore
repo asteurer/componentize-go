@@ -9,4 +9,3 @@ examples/*/go.mod
 examples/*/go.sum
 examples/*/wasi_*
 examples/*/wit_*
-examples/*/export_wasi*
