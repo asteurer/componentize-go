@@ -9,6 +9,7 @@
 - [**wasmtime**](https://github.com/bytecodealliance/wasmtime)  - v40.0.2
 
 ### Run
+
 ```sh
 # Start the application
 make run
@@ -18,6 +19,7 @@ curl localhost:8080
 ```
 
 ### Run unit tests
+
 ```sh
 make run-tests
 ```
