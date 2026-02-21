@@ -44,13 +44,12 @@ pub fn build_module(
         None => ".",
     };
 
-    // TODO: for when/if we decide to allow users to build wasm modules without componentizing them
-    #[allow(unused_variables)]
+    // The -buildmode flag mutes the module's output, so it is ommitted
     let module_args = [
         "build",
         "-C",
         module_path,
-        "-buildmode=c-shared",
+        "-ldflags=-checklinkname=0",
         "-o",
         out_path,
     ];
@@ -66,9 +65,6 @@ pub fn build_module(
     ];
 
     let output = if only_wasip1 {
-        unimplemented!("Building wasip1 Go apps isn't supported quite yet.");
-        // TODO: for when/if we decide to allow users to build wasm modules without componentizing them
-        #[allow(unreachable_code)]
         Command::new(&go)
             .args(module_args)
             .env("GOOS", "wasip1")
