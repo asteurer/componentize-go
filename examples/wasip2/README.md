@@ -26,5 +26,5 @@ make run-tests
 
 # Method 2: run the tests directly with `go test`
 make generate-bindings
-go test ./unit_tests_should_pass ./unit_tests_should_fail
+go test ./...
 ```

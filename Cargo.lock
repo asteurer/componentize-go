@@ -229,7 +229,9 @@ version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
+ "gomod-parser",
  "regex",
+ "serde",
  "wat",
  "wit-bindgen-go",
  "wit-component",
@@ -424,6 +426,15 @@ dependencies = [
  "r-efi",
  "wasip2",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "gomod-parser"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3649d0cf919c92fa8c6499d93a4996c72ff36fc5d5c6a9df5fb15e0e9c82e5b"
+dependencies = [
+ "winnow",
 ]
 
 [[package]]
@@ -2072,6 +2083,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
 
 [[package]]
+name = "winnow"
+version = "0.7.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "wit-bindgen"
 version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2080,7 +2100,6 @@ checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
 [[package]]
 name = "wit-bindgen-core"
 version = "0.53.1"
-source = "git+https://github.com/bytecodealliance/wit-bindgen?rev=3ee9fe20a5bce398360d5d291e81a4224a6d7c76#3ee9fe20a5bce398360d5d291e81a4224a6d7c76"
 dependencies = [
  "anyhow",
  "heck",
@@ -2090,7 +2109,6 @@ dependencies = [
 [[package]]
 name = "wit-bindgen-go"
 version = "0.53.1"
-source = "git+https://github.com/bytecodealliance/wit-bindgen?rev=3ee9fe20a5bce398360d5d291e81a4224a6d7c76#3ee9fe20a5bce398360d5d291e81a4224a6d7c76"
 dependencies = [
  "anyhow",
  "heck",

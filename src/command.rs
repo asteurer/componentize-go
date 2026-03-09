@@ -2,6 +2,7 @@ use crate::{
     cmd_bindings::generate_bindings,
     cmd_build::build_module,
     cmd_test::build_test_module,
+    manifest::search_go_mod_deps,
     utils::{embed_wit, module_to_component},
 };
 use anyhow::{Result, anyhow};
@@ -143,6 +144,8 @@ pub fn run<T: Into<OsString> + Clone, I: IntoIterator<Item = T>>(args: I) -> Res
 }
 
 fn build(wit_opts: WitOpts, build: Build) -> Result<()> {
+    search_go_mod_deps(build.mod_path.as_ref(), build.go.as_ref())?;
+
     // Build a wasm module using `go build`.
     let module = build_module(
         build.mod_path.as_ref(),

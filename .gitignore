@@ -1,5 +1,6 @@
 target
 *.wasm
+*.s
 
 # TODO: Remove once wasip3 patch is merged into Big GO
 go-*-bootstrap*

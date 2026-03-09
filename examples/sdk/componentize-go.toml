@@ -1,0 +1,3 @@
+wit = [
+    { path = "./wit", export_interface_names = [""], import_interface_names = [""] }
+]
