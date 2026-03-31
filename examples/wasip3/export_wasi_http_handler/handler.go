@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
-	"wit_component/wasi_http_handler"
+	client "wit_component/wasi_http_client"
 	. "wit_component/wasi_http_types"
 
 	. "go.bytecodealliance.org/pkg/wit/types"
@@ -150,7 +150,7 @@ func getSha256(urlString string) string {
 	request.SetAuthority(Some(parsed.Host)).Ok()
 	request.SetPathWithQuery(Some(parsed.Path)).Ok()
 
-	result := wasi_http_handler.Handle(request)
+	result := client.Send(request)
 	switch result.Tag() {
 	case ResultOk:
 		response := result.Ok()

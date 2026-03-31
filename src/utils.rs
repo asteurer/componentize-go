@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
-use wit_parser::{CloneMaps, Package, PackageId, PackageName, Resolve, Stability, World, WorldId};
+use wit_parser::{CloneMaps, Package, PackageName, Resolve, Stability, World, WorldId};
 
 // In the rare case the snapshot needs to be updated, the latest version
 // can be found here: https://github.com/bytecodealliance/wasmtime/releases
@@ -42,21 +42,40 @@ pub fn parse_wit(
         }
     }
 
-    let mut main_packages: Vec<PackageId> = vec![];
-    for path in paths.iter() {
-        let (pkg, _files) = resolve.push_path(path)?;
-        main_packages.push(pkg);
-    }
+    let packages = paths
+        .iter()
+        .map(|path| {
+            // Consolidates if the same package is referenced in multiple worlds
+            let mut tmp = Resolve {
+                all_features,
+                features: resolve.features.clone(),
+                ..Default::default()
+            };
+            let (pkg, _files) = tmp.push_path(path)?;
+            let consolidated = resolve.merge(tmp)?;
+            Ok(consolidated.packages[pkg.index()])
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    let worlds = worlds
+        .iter()
+        .map(|world| {
+            packages
+                .iter()
+                .find_map(|&pkg| resolve.select_world(&[pkg], Some(world)).ok())
+                .ok_or_else(|| {
+                    anyhow!("no world named `{world}` found in any of the loaded WIT packages")
+                })
+        })
+        .collect::<Result<Vec<_>>>()?;
 
     let world = match &worlds[..] {
-        [] => resolve.select_world(&main_packages, None)?,
-        [world] => resolve.select_world(&main_packages, Some(world))?,
+        [] => packages
+            .iter()
+            .find_map(|&pkg| resolve.select_world(&[pkg], None).ok())
+            .ok_or_else(|| anyhow!("no default world found in any of the loaded WIT packages"))?,
+        &[world] => world,
         worlds => {
-            let worlds = worlds
-                .iter()
-                .map(|world| resolve.select_world(&main_packages, Some(world)))
-                .collect::<Result<Vec<_>>>()?;
-
             let union_package = resolve.packages.alloc(Package {
                 name: PackageName {
                     namespace: "componentize-go".into(),
@@ -83,7 +102,7 @@ pub fn parse_wit(
                 .worlds
                 .insert("union".into(), union_world);
 
-            for &world in &worlds {
+            for &world in worlds {
                 resolve.merge_worlds(world, union_world, &mut CloneMaps::default())?;
             }
 
