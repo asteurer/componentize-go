@@ -4,8 +4,9 @@ mod tests {
     use core::panic;
     use once_cell::sync::Lazy;
     use std::{
+        env,
         net::TcpListener,
-        path::PathBuf,
+        path::{Path, PathBuf},
         process::{Child, Command, Stdio},
         time::Duration,
     };
@@ -15,7 +16,6 @@ mod tests {
         let root_manifest = test_manifest.parent().unwrap();
         let build_output = Command::new("cargo")
             .arg("build")
-            .arg("--release")
             .args([
                 "--manifest-path",
                 root_manifest.join("Cargo.toml").to_str().unwrap(),
@@ -27,7 +27,7 @@ mod tests {
             panic!("{}", String::from_utf8_lossy(&build_output.stderr));
         }
 
-        root_manifest.join("target/release/componentize-go")
+        root_manifest.join("target/debug/componentize-go")
     });
 
     // TODO: Once the patch is merged in Big Go, this needs to be removed.
@@ -94,13 +94,13 @@ mod tests {
 
     struct App {
         /// The path to the example application
-        path: String,
-        /// The WIT world to target
-        world: Option<String>,
+        path: PathBuf,
+        /// The WIT worlds to target
+        worlds: Vec<String>,
         /// The output path of the wasm file
         wasm_path: String,
-        /// The path to the directory containing the WIT files
-        wit_path: Option<String>,
+        /// The paths to the directories containing the WIT files
+        wit_paths: Vec<PathBuf>,
         /// The child process ID of a running wasm app
         process: Option<Child>,
         /// Any tests that need to be compiled and run as such
@@ -116,44 +116,29 @@ mod tests {
     impl App {
         /// Create a new app runner.
         fn new(
-            path: &str,
-            world: Option<&str>,
+            path: &Path,
+            wit_paths: &[&Path],
+            worlds: &[&str],
             tests: Option<Vec<Test>>,
             is_component: bool,
         ) -> Self {
-            let path = componentize_go::utils::make_path_absolute(&PathBuf::from(path))
+            let path = &componentize_go::utils::make_path_absolute(&PathBuf::from(path))
                 .expect("failed to make app path absolute");
 
-            let world = if is_component {
-                Some(world.expect("WIT world must be specified").to_string())
-            } else {
-                None
-            };
-
-            let wit_path = if is_component {
-                Some(
-                    path.join("wit")
-                        .to_str()
-                        .expect("wit_path is not valid unicode")
-                        .to_string(),
-                )
-            } else {
-                None
-            };
+            if is_component {
+                assert!(!wit_paths.is_empty());
+                assert!(!worlds.is_empty());
+            }
 
             App {
-                path: path
-                    .clone()
-                    .to_str()
-                    .expect("app path is not valid unicode")
-                    .to_string(),
-                world,
+                path: path.into(),
+                worlds: worlds.iter().map(|v| v.to_string()).collect(),
                 wasm_path: path
                     .join("main.wasm")
                     .to_str()
                     .expect("wasm_path is not valid unicode")
                     .to_string(),
-                wit_path,
+                wit_paths: wit_paths.iter().map(|v| v.into()).collect(),
                 process: None,
                 tests,
             }
@@ -165,11 +150,13 @@ mod tests {
             self.generate_bindings(go)?;
 
             let mut test_cmd = Command::new(COMPONENTIZE_GO_PATH.as_path());
-            test_cmd
-                .args(["-w", self.world.as_ref().expect("missing WIT world")])
-                .args(["-d", self.wit_path.as_ref().expect("missing WIT path")])
-                .arg("test")
-                .arg("--wasip1");
+            for world in &self.worlds {
+                test_cmd.args(["-w", world]);
+            }
+            for path in &self.wit_paths {
+                test_cmd.arg("-d").arg(path);
+            }
+            test_cmd.arg("test").arg("--wasip1");
 
             // Add all the paths to the packages that have unit tests to compile
             for test in test_pkgs.iter() {
@@ -181,13 +168,13 @@ mod tests {
 
             let test_output = test_cmd.output().expect(&format!(
                 "failed to execute componentize-go for \"{}\"",
-                self.path
+                self.path.display()
             ));
 
             if !test_output.status.success() {
                 return Err(anyhow!(
                     "failed to build application \"{}\": {}",
-                    self.path,
+                    self.path.display(),
                     String::from_utf8_lossy(&test_output.stderr)
                 ));
             }
@@ -279,13 +266,13 @@ mod tests {
 
             let build_output = build_cmd.output().expect(&format!(
                 "failed to execute componentize-go for \"{}\"",
-                self.path
+                self.path.display()
             ));
 
             if !build_output.status.success() {
                 return Err(anyhow!(
                     "failed to build application \"{}\": {}",
-                    self.path,
+                    self.path.display(),
                     String::from_utf8_lossy(&build_output.stderr)
                 ));
             }
@@ -298,11 +285,13 @@ mod tests {
 
             // Build component
             let mut build_cmd = Command::new(COMPONENTIZE_GO_PATH.as_path());
-            build_cmd
-                .args(["-w", self.world.as_ref().expect("missing WIT world")])
-                .args(["-d", self.wit_path.as_ref().expect("missing WIT path")])
-                .arg("build")
-                .args(["-o", &self.wasm_path]);
+            for world in &self.worlds {
+                build_cmd.args(["-w", world]);
+            }
+            for path in &self.wit_paths {
+                build_cmd.arg("-d").arg(path);
+            }
+            build_cmd.arg("build").args(["-o", &self.wasm_path]);
 
             if let Some(go_path) = go.as_ref() {
                 build_cmd.args(["--go", go_path.to_str().unwrap()]);
@@ -313,13 +302,13 @@ mod tests {
 
             let build_output = build_cmd.output().expect(&format!(
                 "failed to execute componentize-go for \"{}\"",
-                self.path
+                self.path.display()
             ));
 
             if !build_output.status.success() {
                 return Err(anyhow!(
                     "failed to build application \"{}\": {}",
-                    self.path,
+                    self.path.display(),
                     String::from_utf8_lossy(&build_output.stderr)
                 ));
             }
@@ -328,16 +317,23 @@ mod tests {
         }
 
         fn generate_bindings(&self, go: Option<&PathBuf>) -> Result<()> {
-            let bindings_output = Command::new(COMPONENTIZE_GO_PATH.as_path())
-                .args(["-w", self.world.as_ref().expect("missing WIT world")])
-                .args(["-d", self.wit_path.as_ref().expect("missing WIT path")])
+            let mut cmd = Command::new(COMPONENTIZE_GO_PATH.as_path());
+            for world in &self.worlds {
+                cmd.args(["-w", world]);
+            }
+            for path in &self.wit_paths {
+                cmd.arg("-d").arg(path);
+            }
+
+            let bindings_output = cmd
                 .arg("bindings")
-                .args(["-o", &self.path])
+                .arg("-o")
+                .arg(&self.path)
                 .current_dir(&self.path)
                 .output()
                 .expect(&format!(
                     "failed to generate bindings for application \"{}\"",
-                    &self.path
+                    self.path.display()
                 ));
             if !bindings_output.status.success() {
                 return Err(anyhow!(
@@ -414,7 +410,7 @@ mod tests {
 
     #[test]
     fn example_wasip1() {
-        let app = App::new("../examples/wasip1", None, None, false);
+        let app = App::new(Path::new("../examples/wasip1"), &[], &[], None, false);
         app.build_module(None).expect("failed to build app module");
         app.run_module().expect("failed to run app module");
     }
@@ -432,9 +428,12 @@ mod tests {
             },
         ];
 
+        let cwd = env::current_dir().unwrap();
+        let app_dir = cwd.parent().unwrap().join("examples").join("wasip2");
         let mut app = App::new(
-            "../examples/wasip2",
-            Some("wasip2-example"),
+            &app_dir,
+            &[&app_dir.join("wit")],
+            &["wasip2-example"],
             Some(unit_tests),
             true,
         );
@@ -454,11 +453,42 @@ mod tests {
 
     #[tokio::test]
     async fn example_wasip3() {
-        let mut app = App::new("../examples/wasip3", Some("wasip3-example"), None, true);
+        let cwd = env::current_dir().unwrap();
+        let app_dir = cwd.parent().unwrap().join("examples").join("wasip3");
+        let mut app = App::new(
+            &app_dir,
+            &[&app_dir.join("wit")],
+            &["wasi:http/service"],
+            None,
+            true,
+        );
         app.build_component(Some(&patched_go_path().await))
             .expect("failed to build app");
         app.run_component("/hello", "Hello, world!")
             .await
             .expect("app failed to run");
+    }
+
+    #[tokio::test]
+    async fn example_multiple_worlds() -> Result<()> {
+        let cwd = env::current_dir()?;
+        let app_dir = cwd
+            .parent()
+            .unwrap()
+            .join("examples")
+            .join("multiple-worlds");
+        let mut app = App::new(
+            &app_dir,
+            &[&app_dir.join("wit1"), &app_dir.join("wit2")],
+            &["world1", "world2"],
+            None,
+            true,
+        );
+        app.build_component(Some(&patched_go_path().await))
+            .expect("failed to build app");
+        app.run_component("/hello", "Hello, world!")
+            .await
+            .expect("app failed to run");
+        Ok(())
     }
 }

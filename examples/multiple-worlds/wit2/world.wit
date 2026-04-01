@@ -1,0 +1,5 @@
+package componentize-go:example;
+
+world world2 {
+  export foo: func();
+}
