@@ -17,16 +17,15 @@ runs:
         path: ${{ runner.tool_cache }}/componentize-go/${{ inputs.version }}
         key: componentize-go-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}
 
-    - name: Download componentize-go
-      if: steps.cache.outputs.cache-hit != 'true'
+    - name: Download componentize-go (Unix)
+      if: steps.cache.outputs.cache-hit != 'true' && runner.os != 'Windows'
       shell: bash
       run: |
         case "${{ runner.os }}-${{ runner.arch }}" in
-          Linux-X64)     os="linux";   arch="amd64" ;;
-          Linux-ARM64)   os="linux";   arch="arm64" ;;
-          macOS-X64)     os="darwin";  arch="amd64" ;;
-          macOS-ARM64)   os="darwin";  arch="arm64" ;;
-          Windows-X64)   os="windows"; arch="amd64" ;;
+          Linux-X64)   os="linux";  arch="amd64" ;;
+          Linux-ARM64) os="linux";  arch="arm64" ;;
+          macOS-X64)   os="darwin"; arch="amd64" ;;
+          macOS-ARM64) os="darwin"; arch="arm64" ;;
           *) echo "Unsupported platform: ${{ runner.os }}-${{ runner.arch }}"; exit 1 ;;
         esac
 
@@ -39,6 +38,20 @@ runs:
         mkdir -p "${cache_dir}"
         cp componentize-go "${cache_dir}/"
         chmod +x "${cache_dir}/componentize-go"
+
+    - name: Download componentize-go (Windows)
+      if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $archive = "componentize-go-windows-amd64.zip"
+        Invoke-WebRequest `
+          -Uri "https://github.com/bytecodealliance/componentize-go/releases/download/${{ inputs.version }}/$archive" `
+          -OutFile $archive
+        Expand-Archive -Path $archive -DestinationPath .
+
+        $cache_dir = "${{ runner.tool_cache }}/componentize-go/${{ inputs.version }}"
+        New-Item -ItemType Directory -Force -Path $cache_dir | Out-Null
+        Copy-Item componentize-go.exe "$cache_dir/"
 
     - name: Add componentize-go to PATH
       shell: bash
