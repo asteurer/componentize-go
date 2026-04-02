@@ -11,22 +11,35 @@ runs:
   using: 'composite'
   steps:
     - name: Cache componentize-go
+      id: cache
       uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # 5.0.4
       with:
-        path: |
-          ${{ runner.tool_cache }}/componentize-go/${{ inputs.version }}
+        path: ${{ runner.tool_cache }}/componentize-go/${{ inputs.version }}
         key: componentize-go-${{ runner.os }}-${{ runner.arch }}-${{ inputs.version }}
+
     - name: Download componentize-go
+      if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        bin_name="componentize-go-${{ runner.os }}-${{ runner.arch }}"
+        case "${{ runner.os }}-${{ runner.arch }}" in
+          Linux-X64)     os="linux";   arch="amd64" ;;
+          Linux-ARM64)   os="linux";   arch="arm64" ;;
+          macOS-X64)     os="darwin";  arch="amd64" ;;
+          macOS-ARM64)   os="darwin";  arch="arm64" ;;
+          Windows-X64)   os="windows"; arch="amd64" ;;
+          *) echo "Unsupported platform: ${{ runner.os }}-${{ runner.arch }}"; exit 1 ;;
+        esac
 
-        # Download release
-        curl -LO https://github.com/bytecodealliance/componentize-go/releases/download/${{ inputs.version }}/${bin_name}.tar.gz
-        tar -xvzf ${bin_name}.tar.gz
+        archive="componentize-go-${os}-${arch}.tar.gz"
+        curl -fsSL "https://github.com/bytecodealliance/componentize-go/releases/download/${{ inputs.version }}/${archive}" \
+          -o "${archive}"
+        tar -xzf "${archive}"
 
-        # Add to cache
         cache_dir="${{ runner.tool_cache }}/componentize-go/${{ inputs.version }}"
         mkdir -p "${cache_dir}"
-        cp componentize-go "${cache_dir}"
-        chmod +x  "${cache_dir}/componentize-go"
+        cp componentize-go "${cache_dir}/"
+        chmod +x "${cache_dir}/componentize-go"
+
+    - name: Add componentize-go to PATH
+      shell: bash
+      run: echo "${{ runner.tool_cache }}/componentize-go/${{ inputs.version }}" >> "$GITHUB_PATH"
