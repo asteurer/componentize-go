@@ -4,7 +4,7 @@
 
 ### Prerequisites
 
-- [**componentize-go**](https://github.com/bytecodealliance/componentize-go) - v0.3.0
+- [**componentize-go**](https://github.com/bytecodealliance/componentize-go) - Latest version
 - [**go**](https://go.dev/dl/) - v1.25+
 - [**wasmtime**](https://github.com/bytecodealliance/wasmtime)  - v43.0.0
 
@@ -27,4 +27,16 @@ make run-tests
 # Method 2: run the tests directly with `go test`
 make generate-bindings
 go test ./unit_tests_should_pass ./unit_tests_should_fail
+```
+
+### Run `go vet`
+
+The generated code will fail the default `go vet` analysis due to:
+- How `unsafe.Pointer` is used
+- How the WIT tuple type is represented in Go
+
+If you must perform static analysis on the generated code, this is the workaround:
+
+```sh
+go vet -unsafeptr=false -composites=false ./...
 ```

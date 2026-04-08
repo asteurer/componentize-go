@@ -4,7 +4,7 @@
 
 ### Prerequisites
 
-- [**componentize-go**](https://github.com/bytecodealliance/componentize-go) - v0.3.0
+- [**componentize-go**](https://github.com/bytecodealliance/componentize-go) - Latest version
 - [**go**](https://go.dev/dl/) - v1.25+
 - [**wasmtime**](https://github.com/bytecodealliance/wasmtime)  - v43.0.0
 
