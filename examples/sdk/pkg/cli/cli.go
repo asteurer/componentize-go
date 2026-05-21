@@ -20,6 +20,6 @@ func RegisterExports(c Component) {
 			panic(err)
 		}
 
-		return witTypes.Result[witTypes.Unit, witTypes.Unit]{}
+		return witTypes.Ok[witTypes.Unit, witTypes.Unit](witTypes.Unit{})
 	}
 }

@@ -23,7 +23,7 @@ You can override the default worlds via the command line. Note that doing so cau
 
 ## Defining Imports
 
-Imports are straight forward since componentize-go generates the bindings. To see how imports are abstracted, see the [sockets package](pkg/sockets/sockets.go).
+Imports are straightforward since componentize-go generates the bindings. To see how imports are abstracted, see the [sockets package](pkg/sockets/sockets.go).
 
 ## Defining Exports
 
