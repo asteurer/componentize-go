@@ -22,6 +22,34 @@ The output is a component which may be run using e.g. [`wasmtime`](https://githu
 
 ## Installation
 
+### Using Go
+
+Requires Go 1.25.5+
+
+Add the following to your `go.mod` file and run `go mod tidy`:
+
+```
+tool github.com/bytecodealliance/componentize-go
+```
+
+In the same directory as your `go.mod` file, you can interact with the tool:
+
+```sh
+go tool componentize-go --help
+```
+
+Alternatively:
+
+```sh
+go install github.com/bytecodealliance/componentize-go@latest
+```
+
+It should be accessible via PATH:
+
+```sh
+componentize-go --help
+```
+
 ### Download a release
 
 You can download a specific release from the [release page](https://github.com/bytecodealliance/componentize-go/releases).
