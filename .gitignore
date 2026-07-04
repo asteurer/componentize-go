@@ -10,6 +10,10 @@ examples/*/go.mod
 examples/*/go.sum
 examples/*/wasi_*
 examples/*/wit_*
+tests/fixtures/*/go.mod
+tests/fixtures/*/go.sum
+tests/fixtures/*/wasi_*
+tests/fixtures/*/wit_*
 
 # Not generated
 !examples/wasip1/go.mod
