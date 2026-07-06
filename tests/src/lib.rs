@@ -1,8 +1,8 @@
 #[cfg(test)]
-mod harness;
-
+mod examples;
 #[cfg(test)]
 mod fixtures;
-
 #[cfg(test)]
-mod examples;
+mod harness;
+#[cfg(test)]
+mod wasmtime;

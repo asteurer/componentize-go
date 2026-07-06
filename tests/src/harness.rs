@@ -1,325 +1,332 @@
-use std::{net::TcpListener, path::{Path, PathBuf}, process::{Child, Command, Stdio}, time::Duration};
 use anyhow::{Result, anyhow};
 use once_cell::sync::Lazy;
+use std::{
+    net::TcpListener,
+    path::{Path, PathBuf},
+    process::{Child, Command, Stdio},
+    time::Duration,
+};
 
 pub(crate) static COMPONENTIZE_GO_PATH: once_cell::sync::Lazy<PathBuf> = Lazy::new(|| {
-        let test_manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let root_manifest = test_manifest.parent().unwrap();
-        let build_output = Command::new("cargo")
-            .arg("build")
-            .args([
-                "--manifest-path",
-                root_manifest.join("Cargo.toml").to_str().unwrap(),
-            ])
-            .output()
-            .expect("failed to build componentize-go");
+    let test_manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root_manifest = test_manifest.parent().unwrap();
+    let build_output = Command::new("cargo")
+        .arg("build")
+        .args([
+            "--manifest-path",
+            root_manifest.join("Cargo.toml").to_str().unwrap(),
+        ])
+        .output()
+        .expect("failed to build componentize-go");
 
-        if !build_output.status.success() {
-            panic!("{}", String::from_utf8_lossy(&build_output.stderr));
-        }
+    if !build_output.status.success() {
+        panic!("{}", String::from_utf8_lossy(&build_output.stderr));
+    }
 
-        root_manifest.join("target/debug/componentize-go")
-    });
+    root_manifest.join("target/debug/componentize-go")
+});
 
 pub(crate) struct App {
-        /// The path to the example application
-        pub path: PathBuf,
-        /// The WIT worlds to target
-        pub worlds: Vec<String>,
-        /// The output path of the wasm file
-        pub wasm_path: String,
-        /// The paths to the directories containing the WIT files
-        pub wit_paths: Vec<PathBuf>,
-        /// The child process ID of a running wasm app
-        pub process: Option<Child>,
-        /// Any tests that need to be compiled and run as such
-        pub tests: Option<Vec<Test>>,
+    /// The path to the example application
+    pub path: PathBuf,
+    /// The WIT worlds to target
+    pub worlds: Vec<String>,
+    /// The output path of the wasm file
+    pub wasm_path: String,
+    /// The paths to the directories containing the WIT files
+    pub wit_paths: Vec<PathBuf>,
+    /// The child process ID of a running wasm app
+    pub process: Option<Child>,
+    /// Any tests that need to be compiled and run as such
+    pub tests: Option<Vec<Test>>,
+}
+
+#[derive(Clone)]
+pub(crate) struct Test {
+    pub should_fail: bool,
+    pub pkg_path: String,
+}
+
+impl App {
+    /// Create a new app runner.
+    pub(crate) fn new(
+        path: &Path,
+        wit_paths: &[&Path],
+        worlds: &[&str],
+        tests: Option<Vec<Test>>,
+        is_component: bool,
+    ) -> Self {
+        let path = &componentize_go::utils::make_path_absolute(&PathBuf::from(path))
+            .expect("failed to make app path absolute");
+
+        if is_component {
+            assert!(!wit_paths.is_empty());
+            assert!(!worlds.is_empty());
+        }
+
+        App {
+            path: path.into(),
+            worlds: worlds.iter().map(|v| v.to_string()).collect(),
+            wasm_path: path
+                .join("main.wasm")
+                .to_str()
+                .expect("wasm_path is not valid unicode")
+                .to_string(),
+            wit_paths: wit_paths.iter().map(|v| v.into()).collect(),
+            process: None,
+            tests,
+        }
     }
 
-    #[derive(Clone)]
-    pub(crate) struct Test {
-        pub should_fail: bool,
-        pub pkg_path: String,
+    pub(crate) fn build_test_modules(&self) -> Result<()> {
+        let test_pkgs = self.tests.as_ref().expect("missing test_pkg_paths");
+
+        self.generate_bindings()?;
+
+        let mut test_cmd = Command::new(COMPONENTIZE_GO_PATH.as_path());
+        for world in &self.worlds {
+            test_cmd.args(["-w", world]);
+        }
+        for path in &self.wit_paths {
+            test_cmd.arg("-d").arg(path);
+        }
+        test_cmd.arg("test").arg("--wasip1");
+
+        // Add all the paths to the packages that have unit tests to compile
+        for test in test_pkgs.iter() {
+            test_cmd.args(["--pkg", &test.pkg_path]);
+        }
+
+        // `go test -c` needs to be in the same path as the go.mod file.
+        test_cmd.current_dir(&self.path);
+
+        let test_output = test_cmd.output().expect(&format!(
+            "failed to execute componentize-go for \"{}\"",
+            self.path.display()
+        ));
+
+        if !test_output.status.success() {
+            return Err(anyhow!(
+                "failed to build application \"{}\": {}",
+                self.path.display(),
+                String::from_utf8_lossy(&test_output.stderr)
+            ));
+        }
+
+        Ok(())
     }
 
-    impl App {
-        /// Create a new app runner.
-        pub(crate) fn new(
-            path: &Path,
-            wit_paths: &[&Path],
-            worlds: &[&str],
-            tests: Option<Vec<Test>>,
-            is_component: bool,
-        ) -> Self {
-            let path = &componentize_go::utils::make_path_absolute(&PathBuf::from(path))
-                .expect("failed to make app path absolute");
+    pub(crate) fn run_module(&self) -> Result<()> {
+        let output = Command::new("wasmtime")
+            .arg("run")
+            .arg(&self.wasm_path)
+            .output()?;
 
-            if is_component {
-                assert!(!wit_paths.is_empty());
-                assert!(!worlds.is_empty());
-            }
-
-            App {
-                path: path.into(),
-                worlds: worlds.iter().map(|v| v.to_string()).collect(),
-                wasm_path: path
-                    .join("main.wasm")
-                    .to_str()
-                    .expect("wasm_path is not valid unicode")
-                    .to_string(),
-                wit_paths: wit_paths.iter().map(|v| v.into()).collect(),
-                process: None,
-                tests,
-            }
-        }
-
-        pub(crate) fn build_test_modules(&self) -> Result<()> {
-            let test_pkgs = self.tests.as_ref().expect("missing test_pkg_paths");
-
-            self.generate_bindings()?;
-
-            let mut test_cmd = Command::new(COMPONENTIZE_GO_PATH.as_path());
-            for world in &self.worlds {
-                test_cmd.args(["-w", world]);
-            }
-            for path in &self.wit_paths {
-                test_cmd.arg("-d").arg(path);
-            }
-            test_cmd.arg("test").arg("--wasip1");
-
-            // Add all the paths to the packages that have unit tests to compile
-            for test in test_pkgs.iter() {
-                test_cmd.args(["--pkg", &test.pkg_path]);
-            }
-
-            // `go test -c` needs to be in the same path as the go.mod file.
-            test_cmd.current_dir(&self.path);
-
-            let test_output = test_cmd.output().expect(&format!(
-                "failed to execute componentize-go for \"{}\"",
-                self.path.display()
+        if !output.status.success() {
+            return Err(anyhow!(
+                "Failed to run wasm module for application at '{}':\n{} ",
+                &self.wasm_path,
+                String::from_utf8_lossy(&output.stdout)
             ));
-
-            if !test_output.status.success() {
-                return Err(anyhow!(
-                    "failed to build application \"{}\": {}",
-                    self.path.display(),
-                    String::from_utf8_lossy(&test_output.stderr)
-                ));
-            }
-
-            Ok(())
         }
 
-        pub(crate) fn run_module(&self) -> Result<()> {
-            let output = Command::new("wasmtime")
-                .arg("run")
-                .arg(&self.wasm_path)
-                .output()?;
+        Ok(())
+    }
 
-            if !output.status.success() {
-                return Err(anyhow!(
-                    "Failed to run wasm module for application at '{}':\n{} ",
-                    &self.wasm_path,
-                    String::from_utf8_lossy(&output.stdout)
+    pub(crate) fn run_test_modules(&self) -> Result<()> {
+        let example_dir = PathBuf::from(&self.path);
+        if let Some(tests) = &self.tests {
+            let mut test_errors: Vec<String> = vec![];
+            for test in tests.iter() {
+                let wasm_file = example_dir.join(componentize_go::cmd_test::get_test_filename(
+                    &PathBuf::from(&test.pkg_path),
                 ));
-            }
-
-            Ok(())
-        }
-
-        pub(crate) fn run_test_modules(&self) -> Result<()> {
-            let example_dir = PathBuf::from(&self.path);
-            if let Some(tests) = &self.tests {
-                let mut test_errors: Vec<String> = vec![];
-                for test in tests.iter() {
-                    let wasm_file = example_dir.join(componentize_go::cmd_test::get_test_filename(
-                        &PathBuf::from(&test.pkg_path),
-                    ));
-                    match Command::new("wasmtime")
-                        .args(["run", wasm_file.to_str().unwrap()])
-                        .output()
-                    {
-                        Ok(output) => {
-                            let succeeded = output.status.success();
-                            if test.should_fail && succeeded {
-                                test_errors.push(format!(
-                                    "The '{}' tests should have failed",
-                                    test.pkg_path
-                                ));
-                            } else if !test.should_fail && !succeeded {
-                                test_errors.push(format!("The '{}' tests should have passed, but failed with the following output:\n\n{}", test.pkg_path, String::from_utf8_lossy(&output.stdout)));
-                            }
+                match Command::new("wasmtime")
+                    .args(["run", wasm_file.to_str().unwrap()])
+                    .output()
+                {
+                    Ok(output) => {
+                        let succeeded = output.status.success();
+                        if test.should_fail && succeeded {
+                            test_errors
+                                .push(format!("The '{}' tests should have failed", test.pkg_path));
+                        } else if !test.should_fail && !succeeded {
+                            test_errors.push(format!("The '{}' tests should have passed, but failed with the following output:\n\n{}", test.pkg_path, String::from_utf8_lossy(&output.stdout)));
                         }
-                        Err(e) => {
-                            test_errors.push(format!(
-                                "Failed to run wasmtime for '{}': {}",
-                                test.pkg_path, e
-                            ));
-                        }
-                    }
-                }
-
-                if !test_errors.is_empty() {
-                    let err_msg = format!(
-                        "{}{}{}",
-                        "\n====================\n",
-                        &test_errors.join("\n\n====================\n"),
-                        "\n\n====================\n"
-                    );
-                    return Err(anyhow!(err_msg));
-                }
-            } else {
-                return Err(anyhow!(
-                    "Please include the test_pkg_paths when creating App::new()"
-                ));
-            }
-
-            Ok(())
-        }
-
-        pub(crate) fn build_module(&self) -> Result<()> {
-            // Build component
-            let mut build_cmd = Command::new(COMPONENTIZE_GO_PATH.as_path());
-            build_cmd
-                .arg("build")
-                .arg("--wasip1")
-                .args(["-o", &self.wasm_path]);
-
-            // Run `go build` in the same directory as the go.mod file.
-            build_cmd.current_dir(&self.path);
-
-            let build_output = build_cmd.output().expect(&format!(
-                "failed to execute componentize-go for \"{}\"",
-                self.path.display()
-            ));
-
-            if !build_output.status.success() {
-                return Err(anyhow!(
-                    "failed to build application \"{}\": {}",
-                    self.path.display(),
-                    String::from_utf8_lossy(&build_output.stderr)
-                ));
-            }
-
-            Ok(())
-        }
-
-        pub(crate) fn build_component(&self) -> Result<()> {
-            self.generate_bindings()?;
-
-            // Build component
-            let mut build_cmd = Command::new(COMPONENTIZE_GO_PATH.as_path());
-            for world in &self.worlds {
-                build_cmd.args(["-w", world]);
-            }
-            for path in &self.wit_paths {
-                build_cmd.arg("-d").arg(path);
-            }
-            build_cmd.arg("build").args(["-o", &self.wasm_path]);
-
-            // Run `go build` in the same directory as the go.mod file.
-            build_cmd.current_dir(&self.path);
-
-            let build_output = build_cmd.output().expect(&format!(
-                "failed to execute componentize-go for \"{}\"",
-                self.path.display()
-            ));
-
-            if !build_output.status.success() {
-                return Err(anyhow!(
-                    "failed to build application \"{}\": {}",
-                    self.path.display(),
-                    String::from_utf8_lossy(&build_output.stderr)
-                ));
-            }
-
-            Ok(())
-        }
-
-        fn generate_bindings(&self) -> Result<()> {
-            let mut cmd = Command::new(COMPONENTIZE_GO_PATH.as_path());
-            for world in &self.worlds {
-                cmd.args(["-w", world]);
-            }
-            for path in &self.wit_paths {
-                cmd.arg("-d").arg(path);
-            }
-
-            let bindings_output = cmd
-                .arg("bindings")
-                .arg("-o")
-                .arg(&self.path)
-                .current_dir(&self.path)
-                .output()
-                .expect(&format!(
-                    "failed to generate bindings for application \"{}\"",
-                    self.path.display()
-                ));
-            if !bindings_output.status.success() {
-                return Err(anyhow!(
-                    "{}",
-                    String::from_utf8_lossy(&bindings_output.stderr)
-                ));
-            }
-
-            // Tidy Go mod
-            let tidy_output = Command::new("go")
-                .arg("mod")
-                .arg("tidy")
-                .current_dir(&self.path)
-                .output()
-                .expect("failed to tidy Go mod");
-            if !tidy_output.status.success() {
-                return Err(anyhow!("{}", String::from_utf8_lossy(&tidy_output.stderr)));
-            }
-
-            Ok(())
-        }
-
-        /// Run the app and check the output.
-        pub(crate) async fn run_component(&mut self, route: &str, expected_response: &str) -> Result<()> {
-            let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind to a free port");
-            let addr = listener.local_addr().expect("Failed to get local address");
-            let port = addr.port();
-            drop(listener);
-
-            let child = Command::new("wasmtime")
-                .arg("serve")
-                .args(["--addr", &format!("0.0.0.0:{port}")])
-                .arg("-Sp3,cli")
-                .arg("-Wcomponent-model-async")
-                .arg(&self.wasm_path)
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
-                .expect("Failed to start wasmtime serve");
-
-            // Storing for cleanup on drop.
-            self.process = Some(child);
-
-            let start = std::time::Instant::now();
-            loop {
-                match reqwest::get(format!("http://localhost:{port}{route}")).await {
-                    Ok(r) => {
-                        let actual = r.text().await.expect("Failed to read response");
-                        assert_eq!(&actual, expected_response);
-                        return Ok(());
                     }
                     Err(e) => {
-                        if start.elapsed() > Duration::from_secs(5) {
-                            return Err(anyhow!("Unable to reach the app: {e}"));
-                        }
+                        test_errors.push(format!(
+                            "Failed to run wasmtime for '{}': {}",
+                            test.pkg_path, e
+                        ));
+                    }
+                }
+            }
+
+            if !test_errors.is_empty() {
+                let err_msg = format!(
+                    "{}{}{}",
+                    "\n====================\n",
+                    &test_errors.join("\n\n====================\n"),
+                    "\n\n====================\n"
+                );
+                return Err(anyhow!(err_msg));
+            }
+        } else {
+            return Err(anyhow!(
+                "Please include the test_pkg_paths when creating App::new()"
+            ));
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn build_module(&self) -> Result<()> {
+        // Build component
+        let mut build_cmd = Command::new(COMPONENTIZE_GO_PATH.as_path());
+        build_cmd
+            .arg("build")
+            .arg("--wasip1")
+            .args(["-o", &self.wasm_path]);
+
+        // Run `go build` in the same directory as the go.mod file.
+        build_cmd.current_dir(&self.path);
+
+        let build_output = build_cmd.output().expect(&format!(
+            "failed to execute componentize-go for \"{}\"",
+            self.path.display()
+        ));
+
+        if !build_output.status.success() {
+            return Err(anyhow!(
+                "failed to build application \"{}\": {}",
+                self.path.display(),
+                String::from_utf8_lossy(&build_output.stderr)
+            ));
+        }
+
+        Ok(())
+    }
+
+    pub(crate) fn build_component(&self) -> Result<()> {
+        self.generate_bindings()?;
+
+        // Build component
+        let mut build_cmd = Command::new(COMPONENTIZE_GO_PATH.as_path());
+        for world in &self.worlds {
+            build_cmd.args(["-w", world]);
+        }
+        for path in &self.wit_paths {
+            build_cmd.arg("-d").arg(path);
+        }
+        build_cmd.arg("build").args(["-o", &self.wasm_path]);
+
+        // Run `go build` in the same directory as the go.mod file.
+        build_cmd.current_dir(&self.path);
+
+        let build_output = build_cmd.output().expect(&format!(
+            "failed to execute componentize-go for \"{}\"",
+            self.path.display()
+        ));
+
+        if !build_output.status.success() {
+            return Err(anyhow!(
+                "failed to build application \"{}\": {}",
+                self.path.display(),
+                String::from_utf8_lossy(&build_output.stderr)
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn generate_bindings(&self) -> Result<()> {
+        let mut cmd = Command::new(COMPONENTIZE_GO_PATH.as_path());
+        for world in &self.worlds {
+            cmd.args(["-w", world]);
+        }
+        for path in &self.wit_paths {
+            cmd.arg("-d").arg(path);
+        }
+
+        let bindings_output = cmd
+            .arg("bindings")
+            .arg("-o")
+            .arg(&self.path)
+            .current_dir(&self.path)
+            .output()
+            .expect(&format!(
+                "failed to generate bindings for application \"{}\"",
+                self.path.display()
+            ));
+        if !bindings_output.status.success() {
+            return Err(anyhow!(
+                "{}",
+                String::from_utf8_lossy(&bindings_output.stderr)
+            ));
+        }
+
+        // Tidy Go mod
+        let tidy_output = Command::new("go")
+            .arg("mod")
+            .arg("tidy")
+            .current_dir(&self.path)
+            .output()
+            .expect("failed to tidy Go mod");
+        if !tidy_output.status.success() {
+            return Err(anyhow!("{}", String::from_utf8_lossy(&tidy_output.stderr)));
+        }
+
+        Ok(())
+    }
+
+    /// Run the app and check the output.
+    pub(crate) async fn run_component(
+        &mut self,
+        route: &str,
+        expected_response: &str,
+    ) -> Result<()> {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind to a free port");
+        let addr = listener.local_addr().expect("Failed to get local address");
+        let port = addr.port();
+        drop(listener);
+
+        let child = Command::new("wasmtime")
+            .arg("serve")
+            .args(["--addr", &format!("0.0.0.0:{port}")])
+            .arg("-Sp3,cli")
+            .arg("-Wcomponent-model-async")
+            .arg(&self.wasm_path)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Failed to start wasmtime serve");
+
+        // Storing for cleanup on drop.
+        self.process = Some(child);
+
+        let start = std::time::Instant::now();
+        loop {
+            match reqwest::get(format!("http://localhost:{port}{route}")).await {
+                Ok(r) => {
+                    let actual = r.text().await.expect("Failed to read response");
+                    assert_eq!(&actual, expected_response);
+                    return Ok(());
+                }
+                Err(e) => {
+                    if start.elapsed() > Duration::from_secs(5) {
+                        return Err(anyhow!("Unable to reach the app: {e}"));
                     }
                 }
             }
         }
     }
+}
 
-    impl Drop for App {
-        fn drop(&mut self) {
-            if let Some(child) = &mut self.process {
-                _ = child.kill()
-            }
+impl Drop for App {
+    fn drop(&mut self) {
+        if let Some(child) = &mut self.process {
+            _ = child.kill()
         }
     }
+}

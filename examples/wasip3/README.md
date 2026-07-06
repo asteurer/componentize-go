@@ -1,6 +1,6 @@
 # `wasip3` Example
 
-This demonstrates how to implement a `wasi:http@0.3.0-rc-2025-09-16` handler
+This demonstrates how to implement a `wasi:http@0.3.0` handler
 using Go, based on a new `wit-bindgen-go` bindings generator which supports
 idiomatic, goroutine-based concurrency on top of the [Component Model
 concurrency
@@ -19,12 +19,12 @@ switch to the upstream releases.
 ### Prerequisites
 
 - [**componentize-go**](https://github.com/bytecodealliance/componentize-go) - Latest version
-- [**wasmtime**](https://github.com/bytecodealliance/wasmtime)  - v44.0.1
+- [**wasmtime**](https://github.com/bytecodealliance/wasmtime)  - v46.0.1
 
 ### Build and Run
 
 This will build the dependencies, generate Go bindings from the
-`wasi:http@0.3.0-rc-2025-09-16` WIT files, build the component, and run it using
+`wasi:http@0.3.0` WIT files, build the component, and run it using
 `wasmtime serve`:
 
 ```shell

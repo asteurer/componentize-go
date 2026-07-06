@@ -1,0 +1,6 @@
+package foo:bar@0.1.0;
+
+world memory-pressure {
+    import get-str: func() -> string;
+    export run: func();
+}

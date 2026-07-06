@@ -46,7 +46,7 @@ clap = { version = "4.6.1", features = ["derive"] }
 regex = "1.12.4"
 serde = { version = "1.0.228", features = ["derive"] }
 toml = "1.1.0"
-wit-bindgen-go = { git = "https://github.com/asteurer/wit-bindgen", rev = "ea8159cf8cd2125d731ac72f8f3e0c64ca4e1d23" }
+wit-bindgen-go = { git = "https://github.com/bytecodealliance/wit-bindgen", rev = "4642b6bcc4283361b5d85eb00b00addf618458a9" }
 wit-component = "0.252.0"
 wit-parser = "0.252.0"
 which = "8.0.4"
