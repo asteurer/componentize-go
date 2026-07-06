@@ -20,3 +20,10 @@ See [LICENSE](LICENSE) for more details.
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in this project by you, as defined in the Apache-2.0 license,
 shall be licensed as above, without any additional terms or conditions.
+
+## Notes for Maintainers
+
+### Release process
+
+Bump the version field in [Cargo.toml](/Cargo.toml) and the release variable in [main.go](/main.go) (both should be the same), PR that into main, and tag the result. Once the tag has been pushed to main, the [release](/.github/workflows/release.yml) workflow will automatically create the release artifacts.
+
