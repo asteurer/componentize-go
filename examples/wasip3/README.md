@@ -19,7 +19,7 @@ switch to the upstream releases.
 ### Prerequisites
 
 - [**componentize-go**](https://github.com/bytecodealliance/componentize-go) - Latest version
-- [**wasmtime**](https://github.com/bytecodealliance/wasmtime)  - v46.0.1
+- [**wasmtime**](https://github.com/bytecodealliance/wasmtime)  - v47.0.2
 
 ### Build and Run
 
