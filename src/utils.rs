@@ -561,7 +561,7 @@ mod tests {
     #[test]
     fn test_world_build_tags_sync_world() {
         let (resolve, world) = resolve_world(
-            "package wasmcloud:component-go@0.2.0;\n\
+            "package bca:component-go@0.2.0;\n\
              world wasip2 {\n\
                import log: func(message: string);\n\
              }",
@@ -572,7 +572,7 @@ mod tests {
     #[test]
     fn test_world_build_tags_async_world() {
         let (resolve, world) = resolve_world(
-            "package wasmcloud:component-go@0.2.0;\n\
+            "package bca:component-go@0.2.0;\n\
              world wasip3 {\n\
                import download: func(url: string) -> stream<u8>;\n\
              }",
