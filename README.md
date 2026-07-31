@@ -69,3 +69,15 @@ cargo install --git https://github.com/bytecodealliance/componentize-go
 ## Usage
 
 Please reference the `README.md` and `Makefile` files in each of the directories in [examples](./examples/).
+
+## Build tags
+
+When compiling your Go module, `componentize-go` passes `go build` the
+`componentizego_async` build tag when the selected WIT world uses async
+features (async functions, `stream`s, or `future`s).
+
+SDKs can use `//go:build componentizego_async` to select between WASI 0.2 and
+WASI 0.3 implementations of an API at compile time.
+
+Any `-tags` you specify via the `GOFLAGS` environment variable are merged with
+the tags above (rather than being overridden by them).
