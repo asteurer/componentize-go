@@ -1,4 +1,4 @@
-use crate::utils::{check_go_version, make_path_absolute};
+use crate::utils::{check_go_version, go_tags_arg, make_path_absolute};
 use anyhow::{Result, anyhow};
 use std::{
     path::{Path, PathBuf},
@@ -9,7 +9,16 @@ use std::{
 ///
 /// If the module is not going to be adapted to the component model,
 /// set the `only_wasip1` arg to true.
-pub fn build_module(out: Option<&PathBuf>, go: &Path, only_wasip1: bool) -> Result<PathBuf> {
+///
+/// `tags` contains any build tags derived from the target world (see
+/// [`crate::utils::world_build_tags`]); these are merged with any `-tags`
+/// specified via `GOFLAGS` and passed to `go build`.
+pub fn build_module(
+    out: Option<&PathBuf>,
+    go: &Path,
+    only_wasip1: bool,
+    tags: &[String],
+) -> Result<PathBuf> {
     check_go_version(go)?;
 
     let out_path_buf = match &out {
@@ -26,39 +35,24 @@ pub fn build_module(out: Option<&PathBuf>, go: &Path, only_wasip1: bool) -> Resu
         .to_str()
         .ok_or_else(|| anyhow!("Output path is not valid unicode"))?;
 
-    // The -buildmode flag mutes the module's output, so it is ommitted
-    let module_args = [
-        "build",
-        "-C",
-        ".",
-        "-ldflags=-checklinkname=0",
-        "-o",
-        out_path,
-    ];
+    let mut args = vec!["build".to_string(), "-C".to_string(), ".".to_string()];
+    // The -buildmode flag mutes the module's output, so it is ommitted when
+    // building a plain wasip1 module
+    if !only_wasip1 {
+        args.push("-buildmode=c-shared".to_string());
+    }
+    args.push("-ldflags=-checklinkname=0".to_string());
+    if let Some(tags_arg) = go_tags_arg(tags) {
+        args.push(tags_arg);
+    }
+    args.push("-o".to_string());
+    args.push(out_path.to_string());
 
-    let component_args = [
-        "build",
-        "-C",
-        ".",
-        "-buildmode=c-shared",
-        "-ldflags=-checklinkname=0",
-        "-o",
-        out_path,
-    ];
-
-    let output = if only_wasip1 {
-        Command::new(go)
-            .args(module_args)
-            .env("GOOS", "wasip1")
-            .env("GOARCH", "wasm")
-            .output()?
-    } else {
-        Command::new(go)
-            .args(component_args)
-            .env("GOOS", "wasip1")
-            .env("GOARCH", "wasm")
-            .output()?
-    };
+    let output = Command::new(go)
+        .args(&args)
+        .env("GOOS", "wasip1")
+        .env("GOARCH", "wasm")
+        .output()?;
 
     if !output.status.success() {
         return Err(anyhow!(

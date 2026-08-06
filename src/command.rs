@@ -2,7 +2,9 @@ use crate::{
     cmd_bindings::generate_bindings,
     cmd_build::build_module,
     cmd_test::build_test_module,
-    utils::{dummy_wit, embed_wit, install_go, module_to_component, parse_wit, pick_go},
+    utils::{
+        dummy_wit, embed_wit, install_go, module_to_component, parse_wit, pick_go, world_build_tags,
+    },
 };
 use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
@@ -225,8 +227,16 @@ fn build(wit_opts: WitOpts, build: Build) -> Result<()> {
 
     let go = &pick_go(&resolve, world, build.go.as_deref())?;
 
+    // Build tags derived from the target world (none for plain wasip1
+    // modules, which don't target a world).
+    let tags = if build.wasip1 {
+        Vec::new()
+    } else {
+        world_build_tags(&resolve, world)
+    };
+
     // Build a wasm module using `go build`.
-    let module = build_module(build.output.as_ref(), go, build.wasip1)?;
+    let module = build_module(build.output.as_ref(), go, build.wasip1, &tags)?;
 
     if !build.wasip1 {
         // Embed the WIT documents in the wasip1 component.
@@ -258,9 +268,17 @@ fn test(wit_opts: WitOpts, test: Test) -> Result<()> {
         return Err(anyhow!("Path to a package containing Go tests is required"));
     }
 
+    // Build tags derived from the target world (none for plain wasip1
+    // modules, which don't target a world).
+    let tags = if test.wasip1 {
+        Vec::new()
+    } else {
+        world_build_tags(&resolve, world)
+    };
+
     for pkg in test.pkg.iter() {
         // Build a wasm module using `go test -c`.
-        let module = build_test_module(pkg, test.output.as_ref(), go, test.wasip1)?;
+        let module = build_test_module(pkg, test.output.as_ref(), go, test.wasip1, &tags)?;
 
         if !test.wasip1 {
             // Embed the WIT documents in the wasm module.

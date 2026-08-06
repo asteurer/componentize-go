@@ -11,6 +11,11 @@ import (
 	. "go.bytecodealliance.org/pkg/wit/types"
 )
 
+// This fails to compile unless componentize-go passed the
+// `componentizego_async` build tag (see async_tag.go), which it must for this
+// async world.
+var _ = asyncTagPresent
+
 // Handle the specified `Request`, returning a `Response`
 func Handle(request *Request) Result[*Response, ErrorCode] {
 	method := request.GetMethod().Tag()

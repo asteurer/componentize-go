@@ -1,4 +1,4 @@
-use crate::utils::{check_go_version, make_path_absolute};
+use crate::utils::{check_go_version, go_tags_arg, make_path_absolute};
 use anyhow::{Result, anyhow};
 use std::{
     path::{Path, PathBuf},
@@ -9,11 +9,16 @@ use std::{
 ///
 /// If the module is not going to be adapted to the component model,
 /// set the `only_wasip1` arg to true.
+///
+/// `tags` contains any build tags derived from the target world (see
+/// [`crate::utils::world_build_tags`]); these are merged with any `-tags`
+/// specified via `GOFLAGS` and passed to `go test -c`.
 pub fn build_test_module(
     path: &Path,
     output_dir: Option<&PathBuf>,
     go: &Path,
     only_wasip1: bool,
+    tags: &[String],
 ) -> Result<PathBuf> {
     check_go_version(go)?;
 
@@ -36,51 +41,41 @@ pub fn build_test_module(
         std::fs::create_dir_all(dir)?;
     }
 
-    // The -buildmode flag mutes the unit test output, so it is ommitted
-    let module_args = [
-        "test",
-        "-c",
-        "-ldflags=-checklinkname=0",
-        "-o",
-        test_wasm_path
-            .to_str()
-            .expect("the combined paths of 'output-dir' and 'pkg' are not valid unicode"),
-        path.to_str().expect("pkg path is not valid unicode"),
-    ];
-
-    // TODO: for when we figure out how wasip2 tests are to be run
-    #[allow(unused_variables)]
-    let component_args = [
-        "test",
-        "-c",
-        "-buildmode=c-shared",
-        "-ldflags=-checklinkname=0",
-        "-o",
-        test_wasm_path
-            .to_str()
-            .expect("the combined paths of 'output-dir' and 'pkg' are not valid unicode"),
-        path.to_str().expect("pkg path is not valid unicode"),
-    ];
-
-    let output = if only_wasip1 {
-        Command::new(go)
-            .args(module_args)
-            .env("GOOS", "wasip1")
-            .env("GOARCH", "wasm")
-            .output()?
-    } else {
+    if !only_wasip1 {
+        // TODO: for when we figure out how wasip2 tests are to be run; that
+        // will require adding `-buildmode=c-shared` to the args below.
         unimplemented!(
             "Building Go test components is not yet supported. Please use the --wasip1 flag when building unit tests."
         );
+    }
 
-        // TODO: for when we figure out how wasip2 tests are to be run
-        #[allow(unreachable_code)]
-        Command::new(go)
-            .args(component_args)
-            .env("GOOS", "wasip1")
-            .env("GOARCH", "wasm")
-            .output()?
-    };
+    // The -buildmode flag mutes the unit test output, so it is ommitted
+    let mut args = vec![
+        "test".to_string(),
+        "-c".to_string(),
+        "-ldflags=-checklinkname=0".to_string(),
+    ];
+    if let Some(tags_arg) = go_tags_arg(tags) {
+        args.push(tags_arg);
+    }
+    args.push("-o".to_string());
+    args.push(
+        test_wasm_path
+            .to_str()
+            .expect("the combined paths of 'output-dir' and 'pkg' are not valid unicode")
+            .to_string(),
+    );
+    args.push(
+        path.to_str()
+            .expect("pkg path is not valid unicode")
+            .to_string(),
+    );
+
+    let output = Command::new(go)
+        .args(&args)
+        .env("GOOS", "wasip1")
+        .env("GOARCH", "wasm")
+        .output()?;
 
     if !output.status.success() {
         return Err(anyhow!(

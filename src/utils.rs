@@ -377,6 +377,67 @@ fn world_needs_async(resolve: &Resolve, world: WorldId) -> bool {
         })
 }
 
+/// Compute the `go build` tags derived from the given world:
+/// `componentizego_async`, when the world uses async features.
+pub fn world_build_tags(resolve: &Resolve, world: WorldId) -> Vec<String> {
+    if world_needs_async(resolve, world) {
+        vec!["componentizego_async".to_string()]
+    } else {
+        Vec::new()
+    }
+}
+
+/// The `-tags` argument to pass on the `go build`/`go test` command line, or
+/// `None` if there are no tags to pass.
+///
+/// Go reads `GOFLAGS` from the environment, but a `-tags` flag passed on the
+/// command line overrides any `-tags` in `GOFLAGS`.  Since componentize-go
+/// passes its own `-tags` flag, any user-specified tags in `GOFLAGS` are
+/// parsed out and merged here so that they survive.
+pub fn go_tags_arg(tags: &[String]) -> Option<String> {
+    let merged = merge_build_tags(std::env::var("GOFLAGS").ok().as_deref(), tags);
+    if merged.is_empty() {
+        None
+    } else {
+        Some(format!("-tags={}", merged.join(",")))
+    }
+}
+
+/// Merge any build tags found in a `GOFLAGS` value with `tags`, returning a
+/// deduplicated list.
+fn merge_build_tags(goflags: Option<&str>, tags: &[String]) -> Vec<String> {
+    let mut merged = goflags.map(goflags_tags).unwrap_or_default();
+    for tag in tags {
+        if !merged.contains(tag) {
+            merged.push(tag.clone());
+        }
+    }
+    merged
+}
+
+/// Extract the values of any `-tags` flags in a `GOFLAGS` value.
+///
+/// `GOFLAGS` is a space-separated list of flags, each of which must begin
+/// with `-` or `--` and must use the `-flag=value` form if it takes a value.
+fn goflags_tags(goflags: &str) -> Vec<String> {
+    let mut tags = Vec::new();
+    for flag in goflags.split_whitespace() {
+        let Some(flag) = flag.strip_prefix('-') else {
+            continue;
+        };
+        let flag = flag.strip_prefix('-').unwrap_or(flag);
+        if let Some(value) = flag.strip_prefix("tags=") {
+            for tag in value.split(',') {
+                let tag = tag.trim();
+                if !tag.is_empty() && !tags.iter().any(|t| t == tag) {
+                    tags.push(tag.to_string());
+                }
+            }
+        }
+    }
+    tags
+}
+
 pub fn install_go(
     url: Option<String>,
     timeout: Option<Duration>,
@@ -489,6 +550,76 @@ mod tests {
     use std::net::TcpListener;
     use std::thread;
     use std::time::Duration;
+
+    fn resolve_world(wit: &str) -> (Resolve, WorldId) {
+        let mut resolve = Resolve::default();
+        let pkg = resolve.push_str("test.wit", wit).unwrap();
+        let world = resolve.select_world(&[pkg], None).unwrap();
+        (resolve, world)
+    }
+
+    #[test]
+    fn test_world_build_tags_sync_world() {
+        let (resolve, world) = resolve_world(
+            "package bca:component-go@0.2.0;\n\
+             world wasip2 {\n\
+               import log: func(message: string);\n\
+             }",
+        );
+        assert_eq!(world_build_tags(&resolve, world), Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_world_build_tags_async_world() {
+        let (resolve, world) = resolve_world(
+            "package bca:component-go@0.2.0;\n\
+             world wasip3 {\n\
+               import download: func(url: string) -> stream<u8>;\n\
+             }",
+        );
+        assert_eq!(world_build_tags(&resolve, world), ["componentizego_async"]);
+    }
+
+    #[test]
+    fn test_goflags_tags() {
+        assert_eq!(goflags_tags(""), Vec::<String>::new());
+        assert_eq!(goflags_tags("-mod=mod -trimpath"), Vec::<String>::new());
+        assert_eq!(goflags_tags("-tags=custom"), ["custom"]);
+        assert_eq!(
+            goflags_tags("-mod=mod -tags=custom,debug -trimpath"),
+            ["custom", "debug"]
+        );
+        // Double-dash form and repeated flags are merged and deduplicated
+        assert_eq!(goflags_tags("--tags=a,b -tags=b,c"), ["a", "b", "c"]);
+        // Empty entries are dropped
+        assert_eq!(goflags_tags("-tags=a,,b,"), ["a", "b"]);
+        // A bare `tags=...` word (no leading dash) is not a flag
+        assert_eq!(goflags_tags("tags=a"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_merge_build_tags() {
+        let ours = ["componentizego_async".to_string()];
+        // No GOFLAGS: just our tags
+        assert_eq!(merge_build_tags(None, &ours), ["componentizego_async"]);
+        // GOFLAGS without -tags: just our tags
+        assert_eq!(
+            merge_build_tags(Some("-trimpath"), &ours),
+            ["componentizego_async"]
+        );
+        // User tags come first, ours are appended
+        assert_eq!(
+            merge_build_tags(Some("-tags=custom,debug"), &ours),
+            ["custom", "debug", "componentizego_async"]
+        );
+        // Duplicates between GOFLAGS and our tags are removed
+        assert_eq!(
+            merge_build_tags(Some("-tags=componentizego_async,debug"), &ours),
+            ["componentizego_async", "debug"]
+        );
+        // Nothing at all
+        assert_eq!(merge_build_tags(None, &[]), Vec::<String>::new());
+    }
 
     #[test]
     fn test_install_go_times_out_on_stalled_server() {
