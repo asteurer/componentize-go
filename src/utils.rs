@@ -213,15 +213,16 @@ pub fn embed_wit(wasm_file: &Path, resolve: &Resolve, world: WorldId) -> Result<
 pub fn module_to_component(wasm_file: &Path, adapt_file: Option<&Path>) -> Result<()> {
     let wasm: Vec<u8> = fs::read(wasm_file)?;
 
-    let mut encoder = wit_component::ComponentEncoder::default().validate(true);
-    encoder = encoder.module(&wasm)?;
+    let mut encoder = wit_component::ComponentEncoder::default();
+    encoder.validate(true);
+    encoder.module(&wasm)?;
     let adapt_bytes = if let Some(adapt) = adapt_file {
         fs::read(adapt)
             .with_context(|| format!("failed to read adapt file '{}'", adapt.display()))?
     } else {
         WASIP1_SNAPSHOT_ADAPT.to_vec()
     };
-    encoder = encoder.adapter("wasi_snapshot_preview1", &adapt_bytes)?;
+    encoder.adapter("wasi_snapshot_preview1", &adapt_bytes)?;
 
     let bytes = encoder
         .encode()
