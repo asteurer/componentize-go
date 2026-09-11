@@ -274,7 +274,6 @@ pub fn check_go_version(go_path: &Path) -> Result<()> {
     }
 }
 
-
 // go_root() returns `None` if the `go` binary cannot be executed or does not return a valid `GOROOT`.
 fn go_root(go: &Path) -> Option<PathBuf> {
     let output = Command::new(go).args(["env", "GOROOT"]).output().ok()?;
