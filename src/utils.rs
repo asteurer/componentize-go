@@ -274,10 +274,24 @@ pub fn check_go_version(go_path: &Path) -> Result<()> {
     }
 }
 
+// go_root() returns `None` if the `go` binary cannot be executed or does not return a valid `GOROOT`.
+fn go_root(go: &Path) -> Option<PathBuf> {
+    let output = Command::new(go).args(["env", "GOROOT"]).output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let root = String::from_utf8(output.stdout).ok()?;
+    let root = root.trim();
+    if root.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(root))
+    }
+}
+
 fn check_go_async_support(go: &Path) -> Option<()> {
     fs::read_to_string(
-        go.parent()?
-            .parent()?
+        go_root(go)?
             .join("src")
             .join("runtime")
             .join("lock_wasip1.go"),
