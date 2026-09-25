@@ -11,8 +11,8 @@ pub fn generate_bindings(
     should_format: bool,
     output: Option<&Path>,
     pkg_name: Option<String>,
-    export_pkg_name: Option<String>,
     include_versions: bool,
+    quiet: bool,
 ) -> Result<()> {
     let mut files = Default::default();
 
@@ -25,7 +25,7 @@ pub fn generate_bindings(
     // If the user wants to create a package rather than a standalone binary, provide them with the
     // go.bytecodealliance.org/pkg version that needs to be placed in their go.mod file
     let mut message: Option<String> = None;
-    if pkg_name.is_some() {
+    if pkg_name.is_some() && !quiet {
         message = Some(format!(
             "Success! Please add the following line to your 'go.mod' file:\n\nrequire {}",
             wit_bindgen_go::remote_pkg_version()
@@ -36,8 +36,8 @@ pub fn generate_bindings(
         generate_stubs,
         format,
         pkg_name,
-        export_pkg_name,
         include_versions,
+        quiet,
         ..Default::default()
     }
     .build()

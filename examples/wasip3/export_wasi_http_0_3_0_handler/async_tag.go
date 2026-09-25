@@ -1,6 +1,6 @@
 //go:build componentizego_async
 
-package export_wasi_http_handler
+package export_wasi_http_0_3_0_handler
 
 // componentize-go passes the `componentizego_async` build tag to `go build`
 // when the target world uses async features, as this example's

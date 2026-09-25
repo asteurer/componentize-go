@@ -1,12 +1,12 @@
-package export_wasi_http_handler
+package export_wasi_http_0_3_0_handler
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"net/url"
-	client "wit_component/wasi_http_client"
-	. "wit_component/wasi_http_types"
+	client "wit_component/wasi_http_0_3_0_client"
+	. "wit_component/wasi_http_0_3_0_types"
 
 	. "go.bytecodealliance.org/pkg/wit/types"
 )
@@ -21,7 +21,7 @@ func Handle(request *Request) Result[*Response, ErrorCode] {
 	method := request.GetMethod().Tag()
 	path := request.GetPathWithQuery().SomeOr("/")
 
-	if method == MethodGet && path == "/hello" {
+	if method == Method_Get && path == "/hello" {
 		// Say hello!
 
 		tx, rx := MakeStreamU8()
@@ -42,7 +42,7 @@ func Handle(request *Request) Result[*Response, ErrorCode] {
 
 		return Ok[*Response, ErrorCode](response)
 
-	} else if method == MethodGet && path == "/hash-all" {
+	} else if method == Method_Get && path == "/hash-all" {
 		// Collect one or more "url" headers, download their contents
 		// concurrently, compute their SHA-256 hashes incrementally
 		// (i.e. without buffering the response bodies), and stream the
@@ -84,7 +84,7 @@ func Handle(request *Request) Result[*Response, ErrorCode] {
 
 		return Ok[*Response, ErrorCode](response)
 
-	} else if method == MethodPost && path == "/echo" {
+	} else if method == Method_Post && path == "/echo" {
 		// Echo the request body back to the client without buffering.
 
 		requestHeaders := request.GetHeaders().CopyAll()

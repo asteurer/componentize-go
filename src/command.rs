@@ -69,6 +69,10 @@ pub struct WitOpts {
     /// This enables using `@unstable` annotations in WIT files.
     #[arg(long)]
     pub features: Vec<String>,
+
+    /// Suppress all non-error output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
 }
 
 #[derive(Subcommand)]
@@ -172,19 +176,12 @@ pub struct Bindings {
     #[arg(long)]
     pub format: bool,
 
-    /// If specified, organize the bindings into a package for use as a library;
-    /// otherwise (if None), the bindings will be organized for use as a standalone executable.
+    /// If set, organize the bindings as a library package: `imports` and
+    /// `exports` (if stubs are generated) each get their own directory named
+    /// after them. If `None`, organize the bindings for a standalone executable
+    /// instead.
     #[arg(long)]
     pub pkg_name: Option<String>,
-
-    /// When `--pkg-name` is specified, optionally specify a different package
-    /// for exports.
-    ///
-    /// This allows you to put the exports and imports in separate packages when
-    /// building a library.  If only `--pkg-name` is specified, this will
-    /// default to that value.
-    #[arg(long, requires = "pkg_name")]
-    pub export_pkg_name: Option<String>,
 
     /// When generating Go package names, include the WIT package version even
     /// if only one version of that package is referenced by the specified
@@ -206,7 +203,7 @@ pub fn run<T: Into<OsString> + Clone, I: IntoIterator<Item = T>>(args: I) -> Res
             eprintln!(
                 "warning: `install-go` is a temporary workaround, and will be removed once https://github.com/golang/go/pull/76775 is resolved"
             );
-            let _ = install_go(None, None, None)?;
+            let _ = install_go(None, None, None, options.wit_opts.quiet)?;
             Ok(())
         }
     }
@@ -225,7 +222,7 @@ fn build(wit_opts: WitOpts, build: Build) -> Result<()> {
         )?
     };
 
-    let go = &pick_go(&resolve, world, build.go.as_deref())?;
+    let go = &pick_go(&resolve, world, build.go.as_deref(), wit_opts.quiet)?;
 
     // Build tags derived from the target world (none for plain wasip1
     // modules, which don't target a world).
@@ -262,7 +259,7 @@ fn test(wit_opts: WitOpts, test: Test) -> Result<()> {
         )?
     };
 
-    let go = &pick_go(&resolve, world, test.go.as_deref())?;
+    let go = &pick_go(&resolve, world, test.go.as_deref(), wit_opts.quiet)?;
 
     if test.pkg.is_empty() {
         return Err(anyhow!("Path to a package containing Go tests is required"));
@@ -308,7 +305,7 @@ fn bindings(wit_opts: WitOpts, bindings: Bindings) -> Result<()> {
         bindings.format,
         bindings.output.as_deref(),
         bindings.pkg_name,
-        bindings.export_pkg_name,
         bindings.include_versions,
+        wit_opts.quiet,
     )
 }

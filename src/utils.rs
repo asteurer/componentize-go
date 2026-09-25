@@ -457,6 +457,7 @@ pub fn install_go(
     url: Option<String>,
     timeout: Option<Duration>,
     cache_dir: Option<PathBuf>,
+    quiet: bool,
 ) -> Result<PathBuf> {
     // Determine OS and architecture
     let os = match std::env::consts::OS {
@@ -501,7 +502,9 @@ pub fn install_go(
             .timeout(timeout.unwrap_or(Duration::from_mins(10)))
             .build()?;
 
-        eprintln!("Downloading patched Go from {url}.");
+        if !quiet {
+            eprintln!("Downloading patched Go from {url}.");
+        }
 
         let content = (|| -> Result<_> {
             client
@@ -515,8 +518,9 @@ pub fn install_go(
         })()
         .context("failed to install patched version of Go\n\nRun `componentize-go install-go` to try again")?;
 
-        eprintln!("Extracting patched Go to {}.", cache_dir.display());
-
+        if !quiet {
+            eprintln!("Extracting patched Go to {}.", cache_dir.display());
+        }
         Archive::new(BzDecoder::new(Cursor::new(content))).unpack(cache_dir)?;
     }
 
@@ -524,7 +528,12 @@ pub fn install_go(
     Ok(bin)
 }
 
-pub fn pick_go(resolve: &Resolve, world: WorldId, go_path: Option<&Path>) -> Result<PathBuf> {
+pub fn pick_go(
+    resolve: &Resolve,
+    world: WorldId,
+    go_path: Option<&Path>,
+    quiet: bool,
+) -> Result<PathBuf> {
     let go = match go_path {
         Some(p) => Some(make_path_absolute(p)?),
         None => which::which("go").ok(),
@@ -549,7 +558,7 @@ pub fn pick_go(resolve: &Resolve, world: WorldId, go_path: Option<&Path>) -> Res
         eprintln!("Note: `go` command not found; will use downloaded version.");
     }
 
-    let bin = install_go(None, None, None)?;
+    let bin = install_go(None, None, None, quiet)?;
     check_go_version(&bin)?;
     check_go_async_support(&bin).ok_or_else(|| anyhow!("downloaded Go does not support async"))?;
 
@@ -655,6 +664,7 @@ mod tests {
             Some(url),
             Some(Duration::from_secs(1)),
             Some(std::env::temp_dir()),
+            false,
         );
         assert!(result.is_err());
 

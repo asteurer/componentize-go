@@ -146,9 +146,9 @@ func (s *TcpSocket) GetRemoteAddress() (netip.AddrPort, error) {
 // Whether this is a IPv4 or IPv6 socket.
 func (s *TcpSocket) GetAddressFamily() IpAddressFamily {
 	switch s.inner.GetAddressFamily() {
-	case wasiSockets.IpAddressFamilyIpv4:
+	case wasiSockets.IpAddressFamily_Ipv4:
 		return IpAddressFamilyIpv4
-	case wasiSockets.IpAddressFamilyIpv6:
+	case wasiSockets.IpAddressFamily_Ipv6:
 		return IpAddressFamilyIpv6
 	default:
 		panic("GetAddressFamily has retrieved a 3rd, heretofore unknown IpAddressFamily type")
@@ -357,12 +357,12 @@ func toWasiIpSockAddr(addr string) (wasiSockets.IpSocketAddress, error) {
 
 func fromWasiIpSocketAddr(addr wasiSockets.IpSocketAddress) netip.AddrPort {
 	switch addr.Tag() {
-	case wasiSockets.IpSocketAddressIpv4:
+	case wasiSockets.IpSocketAddress_Ipv4:
 		v4 := addr.Ipv4()
 		b := v4.Address
 		ip := netip.AddrFrom4([4]byte{b.F0, b.F1, b.F2, b.F3})
 		return netip.AddrPortFrom(ip, v4.Port)
-	case wasiSockets.IpSocketAddressIpv6:
+	case wasiSockets.IpSocketAddress_Ipv6:
 		v6 := addr.Ipv6()
 		a := v6.Address
 		var b [16]byte
@@ -384,9 +384,9 @@ func fromWasiIpSocketAddr(addr wasiSockets.IpSocketAddress) netip.AddrPort {
 func toWasiIpAddressFamily(af IpAddressFamily) wasiSockets.IpAddressFamily {
 	switch af {
 	case IpAddressFamilyIpv4:
-		return wasiSockets.IpAddressFamilyIpv4
+		return wasiSockets.IpAddressFamily_Ipv4
 	case IpAddressFamilyIpv6:
-		return wasiSockets.IpAddressFamilyIpv6
+		return wasiSockets.IpAddressFamily_Ipv6
 	default:
 		panic("Wow, who could've guessed that this code would live to see a THIRD IpAddress family?!")
 	}
@@ -394,33 +394,33 @@ func toWasiIpAddressFamily(af IpAddressFamily) wasiSockets.IpAddressFamily {
 
 func fromWitErrorCode(err wasiSockets.ErrorCode) error {
 	switch err.Tag() {
-	case wasiSockets.ErrorCodeOther:
+	case wasiSockets.ErrorCode_Other:
 		return fmt.Errorf("other error")
-	case wasiSockets.ErrorCodeAccessDenied:
+	case wasiSockets.ErrorCode_AccessDenied:
 		return fmt.Errorf("access denied")
-	case wasiSockets.ErrorCodeNotSupported:
+	case wasiSockets.ErrorCode_NotSupported:
 		return fmt.Errorf("operation is not supported")
-	case wasiSockets.ErrorCodeInvalidArgument:
+	case wasiSockets.ErrorCode_InvalidArgument:
 		return fmt.Errorf("one of the argumenets is invalid")
-	case wasiSockets.ErrorCodeOutOfMemory:
+	case wasiSockets.ErrorCode_OutOfMemory:
 		return fmt.Errorf("out of memory")
-	case wasiSockets.ErrorCodeTimeout:
+	case wasiSockets.ErrorCode_Timeout:
 		return fmt.Errorf("not enough memory to complete the operation")
-	case wasiSockets.ErrorCodeInvalidState:
+	case wasiSockets.ErrorCode_InvalidState:
 		return fmt.Errorf("operation is not valid in the socket's current state")
-	case wasiSockets.ErrorCodeAddressNotBindable:
+	case wasiSockets.ErrorCode_AddressNotBindable:
 		return fmt.Errorf("bind operation failed because the provided address is not an address that the `network` can bind to")
-	case wasiSockets.ErrorCodeAddressInUse:
+	case wasiSockets.ErrorCode_AddressInUse:
 		return fmt.Errorf("bind operation failed because the provided address is already in use or because there are no ephemeral ports available")
-	case wasiSockets.ErrorCodeRemoteUnreachable:
+	case wasiSockets.ErrorCode_RemoteUnreachable:
 		return fmt.Errorf("remote address is not reachable")
-	case wasiSockets.ErrorCodeConnectionRefused:
+	case wasiSockets.ErrorCode_ConnectionRefused:
 		return fmt.Errorf("TCP connection was forcefully rejected")
-	case wasiSockets.ErrorCodeConnectionReset:
+	case wasiSockets.ErrorCode_ConnectionReset:
 		return fmt.Errorf("TCP connection was reset")
-	case wasiSockets.ErrorCodeConnectionAborted:
+	case wasiSockets.ErrorCode_ConnectionAborted:
 		return fmt.Errorf("TCP connection was aborted")
-	case wasiSockets.ErrorCodeDatagramTooLarge:
+	case wasiSockets.ErrorCode_DatagramTooLarge:
 		return fmt.Errorf("size of a datagram sent to a UDP socket exceeded the maximum supported size")
 	default:
 		panic("unimplemented error code")

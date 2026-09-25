@@ -1,7 +1,7 @@
-package export_wasi_http_handler
+package export_wasi_http_0_3_0_handler
 
 import (
-	. "wit_component/wasi_http_types"
+	. "wit_component/wasi_http_0_3_0_types"
 
 	. "go.bytecodealliance.org/pkg/wit/types"
 )
@@ -11,7 +11,7 @@ func Handle(request *Request) Result[*Response, ErrorCode] {
 	method := request.GetMethod().Tag()
 	path := request.GetPathWithQuery().SomeOr("/")
 
-	if method == MethodGet && path == "/hello" {
+	if method == Method_Get && path == "/hello" {
 		// Say hello!
 
 		tx, rx := MakeStreamU8()
