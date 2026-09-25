@@ -58,7 +58,7 @@ pub fn generate_bindings(
     }
 
     if let Some(msg) = message {
-        println!("{msg}");
+        eprintln!("{msg}");
     }
 
     Ok(())

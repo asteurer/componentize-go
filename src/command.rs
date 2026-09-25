@@ -200,9 +200,11 @@ pub fn run<T: Into<OsString> + Clone, I: IntoIterator<Item = T>>(args: I) -> Res
         Command::Bindings(opts) => bindings(options.wit_opts, opts),
         Command::Test(opts) => test(options.wit_opts, opts),
         Command::InstallGo => {
-            eprintln!(
-                "warning: `install-go` is a temporary workaround, and will be removed once https://github.com/golang/go/pull/76775 is resolved"
-            );
+            if !options.wit_opts.quiet {
+                eprintln!(
+                    "warning: `install-go` is a temporary workaround, and will be removed once https://github.com/golang/go/pull/76775 is resolved"
+                );
+            }
             let _ = install_go(None, None, None, options.wit_opts.quiet)?;
             Ok(())
         }

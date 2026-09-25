@@ -541,28 +541,36 @@ pub fn pick_go(
 
     if let Some(go) = go {
         if world_needs_async(resolve, world) && check_go_async_support(&go).is_none() {
-            eprintln!(
-                "Note: {} does not support async operation; will use downloaded version.\n\
+            if !quiet {
+                eprintln!(
+                    "Note: {} does not support async operation; will use downloaded version.\n\
                  See https://github.com/golang/go/pull/76775 for details.",
-                go.display()
-            )
+                    go.display()
+                )
+            }
         } else if check_go_version(&go).is_err() {
-            eprintln!(
-                "Note: {} is not a compatible version of Go; will use downloaded version.",
-                go.display()
-            );
+            if !quiet {
+                eprintln!(
+                    "Note: {} is not a compatible version of Go; will use downloaded version.",
+                    go.display()
+                );
+            }
         } else {
             return Ok(go);
         }
     } else {
-        eprintln!("Note: `go` command not found; will use downloaded version.");
+        if !quiet {
+            eprintln!("Note: `go` command not found; will use downloaded version.");
+        }
     }
 
     let bin = install_go(None, None, None, quiet)?;
     check_go_version(&bin)?;
     check_go_async_support(&bin).ok_or_else(|| anyhow!("downloaded Go does not support async"))?;
 
-    eprintln!("Using {}.", bin.display());
+    if !quiet {
+        eprintln!("Using {}.", bin.display());
+    }
 
     Ok(bin)
 }
