@@ -70,6 +70,10 @@ cargo install --git https://github.com/bytecodealliance/componentize-go
 
 Please reference the `README.md` and `Makefile` files in each of the directories in [examples](./examples/).
 
+### Helpful Libraries
+
+- [go.bytecodealliance.org/wasi](https://go.bytecodealliance.org/wasi): Adapts standard-library interfaces (net/http, log/slog) to standard wasi:* interfaces and ships the committed bindings and WIT worlds needed to build HTTP components.
+
 ## Build tags
 
 When compiling your Go module, `componentize-go` passes `go build` the

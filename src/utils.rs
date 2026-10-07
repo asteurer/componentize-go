@@ -204,6 +204,7 @@ pub fn embed_wit(wasm_file: &Path, resolve: &Resolve, world: WorldId) -> Result<
         resolve,
         world,
         wit_component::StringEncoding::UTF8,
+        true,
     )?;
     fs::write(wasm_file, wasm).context(format!("failed to write '{}'", wasm_file.display()))?;
     Ok(())
@@ -457,6 +458,7 @@ pub fn install_go(
     url: Option<String>,
     timeout: Option<Duration>,
     cache_dir: Option<PathBuf>,
+    quiet: bool,
 ) -> Result<PathBuf> {
     // Determine OS and architecture
     let os = match std::env::consts::OS {
@@ -501,7 +503,9 @@ pub fn install_go(
             .timeout(timeout.unwrap_or(Duration::from_mins(10)))
             .build()?;
 
-        eprintln!("Downloading patched Go from {url}.");
+        if !quiet {
+            eprintln!("Downloading patched Go from {url}.");
+        }
 
         let content = (|| -> Result<_> {
             client
@@ -515,8 +519,9 @@ pub fn install_go(
         })()
         .context("failed to install patched version of Go\n\nRun `componentize-go install-go` to try again")?;
 
-        eprintln!("Extracting patched Go to {}.", cache_dir.display());
-
+        if !quiet {
+            eprintln!("Extracting patched Go to {}.", cache_dir.display());
+        }
         Archive::new(BzDecoder::new(Cursor::new(content))).unpack(cache_dir)?;
     }
 
@@ -524,7 +529,12 @@ pub fn install_go(
     Ok(bin)
 }
 
-pub fn pick_go(resolve: &Resolve, world: WorldId, go_path: Option<&Path>) -> Result<PathBuf> {
+pub fn pick_go(
+    resolve: &Resolve,
+    world: WorldId,
+    go_path: Option<&Path>,
+    quiet: bool,
+) -> Result<PathBuf> {
     let go = match go_path {
         Some(p) => Some(make_path_absolute(p)?),
         None => which::which("go").ok(),
@@ -532,28 +542,36 @@ pub fn pick_go(resolve: &Resolve, world: WorldId, go_path: Option<&Path>) -> Res
 
     if let Some(go) = go {
         if world_needs_async(resolve, world) && check_go_async_support(&go).is_none() {
-            eprintln!(
-                "Note: {} does not support async operation; will use downloaded version.\n\
+            if !quiet {
+                eprintln!(
+                    "Note: {} does not support async operation; will use downloaded version.\n\
                  See https://github.com/golang/go/pull/76775 for details.",
-                go.display()
-            )
+                    go.display()
+                )
+            }
         } else if check_go_version(&go).is_err() {
-            eprintln!(
-                "Note: {} is not a compatible version of Go; will use downloaded version.",
-                go.display()
-            );
+            if !quiet {
+                eprintln!(
+                    "Note: {} is not a compatible version of Go; will use downloaded version.",
+                    go.display()
+                );
+            }
         } else {
             return Ok(go);
         }
     } else {
-        eprintln!("Note: `go` command not found; will use downloaded version.");
+        if !quiet {
+            eprintln!("Note: `go` command not found; will use downloaded version.");
+        }
     }
 
-    let bin = install_go(None, None, None)?;
+    let bin = install_go(None, None, None, quiet)?;
     check_go_version(&bin)?;
     check_go_async_support(&bin).ok_or_else(|| anyhow!("downloaded Go does not support async"))?;
 
-    eprintln!("Using {}.", bin.display());
+    if !quiet {
+        eprintln!("Using {}.", bin.display());
+    }
 
     Ok(bin)
 }
@@ -655,6 +673,7 @@ mod tests {
             Some(url),
             Some(Duration::from_secs(1)),
             Some(std::env::temp_dir()),
+            false,
         );
         assert!(result.is_err());
 

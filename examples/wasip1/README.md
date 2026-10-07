@@ -5,8 +5,8 @@
 ### Prerequisites
 
 - [**componentize-go**](https://github.com/bytecodealliance/componentize-go) - Latest version
-- [**go**](https://go.dev/dl/) - v1.25.9
-- [**wasmtime**](https://github.com/bytecodealliance/wasmtime)  - v47.0.2
+- [**go**](https://go.dev/dl/) - v1.27.1
+- [**wasmtime**](https://github.com/bytecodealliance/wasmtime)  - v49.0.2
 
 ### Run
 

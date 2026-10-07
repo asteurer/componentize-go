@@ -11,7 +11,7 @@ func Handle(request *Request) Result[*Response, ErrorCode] {
 	method := request.GetMethod().Tag()
 	path := request.GetPathWithQuery().SomeOr("/")
 
-	if method == MethodGet && path == "/hello" {
+	if method == Method_Get && path == "/hello" {
 		// Say hello!
 
 		tx, rx := MakeStreamU8()
