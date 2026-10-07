@@ -1,12 +1,12 @@
-package export_wasi_http_0_3_0_handler
+package export_wasi_http_handler
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"net/url"
-	client "wit_component/wasi_http_0_3_0_client"
-	. "wit_component/wasi_http_0_3_0_types"
+	client "wit_component/wasi_http_client"
+	. "wit_component/wasi_http_types"
 
 	. "go.bytecodealliance.org/pkg/wit/types"
 )

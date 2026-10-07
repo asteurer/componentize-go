@@ -2,22 +2,6 @@
 //
 // This code was generated from the following packages:
 //     foo:baz@0.1.0
-//     wasi:io@0.2.8
-//     wasi:clocks@0.2.8
-//     wasi:filesystem@0.2.8
-//     wasi:sockets@0.2.8
-//     wasi:random@0.2.8
-//     wasi:cli@0.2.8
-//     wasi:config@0.2.0-rc.1
-//     wasi:logging@0.1.0-draft
-//     wasi:http@0.2.8
-//     wasi:clocks@0.3.0
-//     wasi:filesystem@0.3.0
-//     wasi:sockets@0.3.0
-//     wasi:random@0.3.0
-//     wasi:cli@0.3.0
-//     wasi:http@0.3.0
-//     bytecodealliance:pkg@0.1.0
 
 package foo_baz_store
 

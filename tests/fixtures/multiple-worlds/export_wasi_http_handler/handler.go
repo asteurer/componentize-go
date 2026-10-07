@@ -1,7 +1,7 @@
-package export_wasi_http_0_3_0_handler
+package export_wasi_http_handler
 
 import (
-	. "wit_component/wasi_http_0_3_0_types"
+	. "wit_component/wasi_http_types"
 
 	. "go.bytecodealliance.org/pkg/wit/types"
 )
