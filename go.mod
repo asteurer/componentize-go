@@ -8,3 +8,5 @@ require (
 )
 
 require golang.org/x/sys v0.37.0 // indirect
+
+retract v0.5.0 // manifest versions not bumped; use v0.5.1
