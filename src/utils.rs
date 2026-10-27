@@ -204,7 +204,9 @@ pub fn embed_wit(wasm_file: &Path, resolve: &Resolve, world: WorldId) -> Result<
         resolve,
         world,
         wit_component::StringEncoding::UTF8,
-        true,
+        // Disabled to keep full versioned interface names (e.g. `wasi:cli/exit@0.2.1`)
+        // rather than semver-canonical ones (e.g. `wasi:cli/exit@0.2`).
+        false,
     )?;
     fs::write(wasm_file, wasm).context(format!("failed to write '{}'", wasm_file.display()))?;
     Ok(())
